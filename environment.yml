@@ -1,4 +1,4 @@
-name: diffusionsdf
+name: hjp_diffusionsdf
 channels:
   - pytorch
   - defaults
