@@ -20,6 +20,7 @@ class ModulationLoader(torch.utils.data.Dataset):
 
         self.conditional = pc_path is not None 
 
+        # data_path = "/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw/LatentCodes/train/2000/ScanARCW/"
         if self.conditional:
             self.modulations, pc_paths = self.load_modulations(data_path, pc_path, split_file)
         else:
@@ -81,12 +82,18 @@ class ModulationLoader(torch.utils.data.Dataset):
         if return_filepaths:
             return files, filepaths
         return files
+    
+    def load_scanarcw_modulations(self, data_source, pc_source, split, f_name="latent.txt", add_flip_augment=False, return_filepaths=True):
+        files = [] # latent codes
+        filepaths = [] # pcd paths
+        pass
+        # for class_id in spl
 
-    def unconditional_load_modulations(self, data_source, split, f_name="latent.txt", add_flip_augment=False):
+    def unconditional_load_modulations(self, data_source, split, f_name="", add_flip_augment=False):
         files = []
-        for dataset in split: # dataset = "acronym" 
-            for class_name in split[dataset]:
-                for instance_name in split[dataset][class_name]:
+        for dataset in split: # dataset = "canonical_manifoldplus" 
+            for class_name in split[dataset]: # class = "04256520"
+                for instance_name in split[dataset][class_name]: # instance_name = "fefaeb0bbd82f411412deb0d2b0f3dcd_scene0265_02_ins_4.npz"
 
                     if add_flip_augment:
                         for idx in range(4):
@@ -97,8 +104,13 @@ class ModulationLoader(torch.utils.data.Dataset):
                             files.append( torch.from_numpy(np.loadtxt(instance_filename)).float() )
 
                     else:
-                        instance_filename = os.path.join(data_source, class_name, instance_name, f_name)
+                        instance_filename = os.path.join(data_source, class_name, instance_name)
                         if not os.path.isfile(instance_filename):
-                            continue
-                        files.append( torch.from_numpy(np.loadtxt(instance_filename)).float() )
+                            # continue
+                            raise RuntimeError
+                        suffix = instance_filename.split(".")[-1]
+                        if suffix == "txt":
+                            files.append( torch.from_numpy(np.loadtxt(instance_filename)).float() )
+                        elif suffix == "pth":
+                            files.append(torch.load(instance_filename))
         return files

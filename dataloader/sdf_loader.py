@@ -89,4 +89,7 @@ class SdfLoader(base.Dataset):
 
 
 
-    
+# if __name__ == "__main__":
+#     specs = json.load("/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/mystage1_sdf/specs.json")
+#     split = json.load(open(specs["TrainSplit"], "r"))
+#     train_dataset = SdfLoader(specs["DataSource"], split, pc_size=specs.get("PCsize",1024), grid_source=specs.get("GridSource", None), modulation_path=specs.get("modulation_path", None))

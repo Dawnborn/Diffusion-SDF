@@ -96,7 +96,10 @@ class Dataset(torch.utils.data.Dataset):
             for dataset in split: # e.g. "acronym" "shapenet"
                 for class_name in split[dataset]:
                     for instance_name in split[dataset][class_name]:
-                        instance_filename = os.path.join(data_source, dataset, class_name, instance_name, gt_filename)
+                        if dataset == "canonical_manifoldplus":
+                            instance_filename = os.path.join(data_source, dataset, class_name, instance_name)
+                        else:
+                            instance_filename = os.path.join(data_source, dataset, class_name, instance_name, gt_filename)
 
                         if do_filter:
                             mod_file = os.path.join(filter_modulation_path, class_name, instance_name, "latent.txt")
@@ -107,7 +110,7 @@ class Dataset(torch.utils.data.Dataset):
                         
                         if not os.path.isfile(instance_filename):
                             logging.warning("Requested non-existent file '{}'".format(instance_filename))
-                            continue
+                            raise Exception("Requested non-existent file '{}'".format(instance_filename))
 
                         csvfiles.append(instance_filename)
             return csvfiles

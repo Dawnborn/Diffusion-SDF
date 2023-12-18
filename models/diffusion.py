@@ -11,7 +11,8 @@ from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
 
 #from model.diffusion.model import * 
-from diff_utils.helpers import * 
+# from diff_utils.helpers import * 
+from diff_utils.helpers import linear_beta_schedule, default, extract, cosine_beta_schedule, perturb_point_cloud, sample_pc
 
 import numpy as np
 import os
@@ -199,14 +200,15 @@ class DiffusionModel(nn.Module):
         '''
         x_start: [B, D]
         t: [B]
+        cond: pc
         '''
 
-        noise = default(noise, lambda: torch.randn_like(x_start)) 
+        noise = default(noise, lambda: torch.randn_like(x_start)) # B, latent code dim:256
 
-        x = self.q_sample(x_start=x_start, t=t, noise=noise) 
+        x = self.q_sample(x_start=x_start, t=t, noise=noise) # B, latent code dim
 
-        model_in = (x, cond) if cond is not None else x
-        model_out = self.model(model_in, t)
+        model_in = (x, cond) if cond is not None else x # 128, 256
+        model_out = self.model(model_in, t) # 128 256 # DiffusionNet forward
 
         if self.objective == 'pred_noise':
             target = noise
@@ -215,7 +217,7 @@ class DiffusionModel(nn.Module):
         else:
             raise ValueError(f'unknown objective {self.objective}')
 
-        loss = self.loss_fn(model_out, target, reduction = 'none')
+        loss = self.loss_fn(model_out, target, reduction = 'none') # F1 loss
         #loss = reduce(loss, 'b ... -> b (...)', 'mean', b = x_start.shape[0]) # only one dim of latent so don't need this line 
         
         loss = loss * extract(self.p2_loss_weight, t, loss.shape)
@@ -253,7 +255,7 @@ class DiffusionModel(nn.Module):
         #if self.perturb_pc is None and cond is not None:
         #    print("check whether to pass condition!!!")
 
-        # STEP 1: sample timestep 
+        # STEP 1: sample timestep # 随机采样B个timesteps, 此处为之前得到的groundtruth latent
         t = torch.randint(0, self.num_timesteps, (x_start.shape[0],), device=x_start.device).long()
 
         # STEP 2: perturb condition

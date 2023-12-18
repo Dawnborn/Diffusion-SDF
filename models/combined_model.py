@@ -111,7 +111,7 @@ class CombinedModel(pl.LightningModule):
         # diff_100 and 1000 loss refers to the losses when t<100 and 100<t<1000, respectively 
         # typically diff_100 approaches 0 while diff_1000 can still be relatively high
         # visualizing loss curves can help with debugging if training is unstable
-        diff_loss, diff_100_loss, diff_1000_loss, pred_latent, perturbed_pc = self.diffusion_model.diffusion_model_from_latent(latent, cond=cond)
+        diff_loss, diff_100_loss, diff_1000_loss, pred_latent, perturbed_pc = self.diffusion_model.diffusion_model_from_latent(latent, cond=cond) # latent: 64,256 B,D
 
         loss_dict =  {
                         "total": diff_loss,

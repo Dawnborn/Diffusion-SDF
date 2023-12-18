@@ -153,7 +153,7 @@ def default(val, d):
         return val
     return d() if isfunction(d) else d
 
-class Attention(nn.Module):
+class Attention(nn.Module): #junpeng: attention机制, causal=True
     def __init__(
         self,
         dim,
@@ -197,16 +197,19 @@ class Attention(nn.Module):
     def forward(self, x, context=None, mask = None, attn_bias = None):
         b, n, device = *x.shape[:2], x.device
 
-        context = default(context, x) #self attention if context is None 
+        context = default(context, x) #x, self attention if context is None 
 
-        x = self.norm(x)
+        x = self.norm(x) # LayerNorm 在每个样本内部做归一化计算
+        """
+        self.to_q(x) B,3,dim_lattent(256) -> B,3,dim_head * heads(64*8)
+        self.to_lv(x) B,3,dim_lattent -> B,3,dim_head*2(64*2) -> B,3,dim_head
+        """
         q, k, v = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
 
-        q = rearrange(q, 'b n (h d) -> b h n d', h = self.heads)
-        q = q * self.scale
+        q = rearrange(q, 'b n (h d) -> b h n d', h = self.heads) # B,3,heads,dim_head
+        q = q * self.scale # self.scale=0.0009765625
 
         # rotary embeddings
-
         if exists(self.rotary_emb):
             q, k = map(self.rotary_emb.rotate_queries_or_keys, (q, k))
 

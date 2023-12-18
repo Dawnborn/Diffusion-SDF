@@ -24,7 +24,6 @@ from diff_utils.helpers import *
 #from metrics.evaluation_metrics import *#compute_all_metrics
 #from metrics import evaluation_metrics
 
-from dataloader.pc_loader import PCloader
 from dataloader.sdf_loader import SdfLoader
 from dataloader.modulation_loader import ModulationLoader
 
@@ -71,6 +70,9 @@ def train():
     elif args.resume is not None:
         ckpt = "{}.ckpt".format(args.resume) if args.resume=='last' else "epoch={}.ckpt".format(args.resume)
         resume = os.path.join(args.exp_dir, ckpt)
+        if not os.path.isfile(resume):
+            print("ckpt not found!!!")
+            resume = None
     else:
         resume = None  
 
@@ -88,15 +90,20 @@ if __name__ == "__main__":
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(
-        "--exp_dir", "-e", required=True,
+        "--exp_dir", "-e", 
+        # required=True,
+        # default = "config/stage2_diff_uncond_debug",
+        default = "config/stage2_diff_cond_debug",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
-        "--resume", "-r", default=None,
+        "--resume", "-r", 
+        default="last",
+        # default=None,
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",
     )
 
-    arg_parser.add_argument("--batch_size", "-b", default=32, type=int)
+    arg_parser.add_argument("--batch_size", "-b", default=128, type=int)
     arg_parser.add_argument( "--workers", "-w", default=8, type=int)
 
     args = arg_parser.parse_args()
