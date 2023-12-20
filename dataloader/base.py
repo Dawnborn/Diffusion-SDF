@@ -52,11 +52,21 @@ class Dataset(torch.utils.data.Dataset):
         return torch.from_numpy(f[pc_idx]).float()
 
     def labeled_sampling(self, f, subsample, pc_size=1024, load_from_path=True):
+        """
+        :param f:
+        :param subsample:
+        :param pc_size:
+        :param load_from_path:
+        :return:
+        """
         if load_from_path:
-            f=pd.read_csv(f, sep=',',header=None).values
-            f = torch.from_numpy(f)
+            if os.path.basename(f).split(".")[-1] == "csv":
+                f=pd.read_csv(f, sep=',',header=None).values
+                f = torch.from_numpy(f)
+            elif os.path.basename(f).split(".")[-1] == "npz":
+                pass
 
-        half = int(subsample / 2) 
+        half = int(subsample / 2)
         neg_tensor = f[f[:,-1]<0]
         pos_tensor = f[f[:,-1]>0]
 
@@ -80,8 +90,8 @@ class Dataset(torch.utils.data.Dataset):
         else:
             neg_sample = neg_tensor[neg_idx]
 
-        pc = f[f[:,-1]==0][:,:3]
-        pc_idx = torch.randperm(pc.shape[0])[:pc_size]
+        pc = f[f[:,-1]==0][:,:3]  # choose sdf==0 surface point
+        pc_idx = torch.randperm(pc.shape[0])[:pc_size]  # randomly select only pc_size surface point
         pc = pc[pc_idx]
 
         samples = torch.cat([pos_sample, neg_sample], 0)
@@ -96,7 +106,10 @@ class Dataset(torch.utils.data.Dataset):
             for dataset in split: # e.g. "acronym" "shapenet"
                 for class_name in split[dataset]:
                     for instance_name in split[dataset][class_name]:
-                        instance_filename = os.path.join(data_source, dataset, class_name, instance_name, gt_filename)
+                        if dataset == "canonical_manifoldplus":
+                            instance_filename = os.path.join(data_source, dataset, class_name, instance_name)
+                        else:
+                            instance_filename = os.path.join(data_source, dataset, class_name, instance_name, gt_filename)
 
                         if do_filter:
                             mod_file = os.path.join(filter_modulation_path, class_name, instance_name, "latent.txt")
@@ -107,7 +120,7 @@ class Dataset(torch.utils.data.Dataset):
                         
                         if not os.path.isfile(instance_filename):
                             logging.warning("Requested non-existent file '{}'".format(instance_filename))
-                            continue
+                            raise Exception("Requested non-existent file '{}'".format(instance_filename))
 
                         csvfiles.append(instance_filename)
             return csvfiles

@@ -7,7 +7,7 @@ import random
 from inspect import isfunction
 import os
 import json 
-#import open3d as o3d
+import open3d as o3d
 
 
 def get_split_filenames(data_source, split_file, f_name="sdf_data.csv"):
@@ -292,8 +292,8 @@ def normalize_to_zero_to_one(f):
 # extract the appropriate t index for a batch of indices
 def extract(a, t, x_shape):
     b, *_ = t.shape
-    out = a.gather(-1, t)
-    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
+    out = a.gather(-1, t) # 64, 同t形状一样，在a的-1维度上按照t取出对应的数
+    return out.reshape(b, *((1,) * (len(x_shape) - 1))) # 形状为 64，1
 
 def linear_beta_schedule(timesteps):
     #print("using LINEAR schedule")

@@ -13,7 +13,7 @@ from diff_utils.model_utils import *
 
 from random import sample
 
-class CausalTransformer(nn.Module):
+class CausalTransformer(nn.Module): #junpeng: CausalTransformer
     def __init__(
         self,
         dim, 
@@ -87,7 +87,7 @@ class CausalTransformer(nn.Module):
     def forward(self, x, time_emb=None, context=None):
         n, device = x.shape[1], x.device
 
-        x = self.init_norm(x)
+        x = self.init_norm(x) # B,3,latent_code_dim ->
 
         attn_bias = self.rel_pos_bias(n, n + 1, device = device)
 
@@ -110,17 +110,18 @@ class CausalTransformer(nn.Module):
             for idx, (attn, ff) in enumerate(self.layers):
                 #print("x1 shape: ", x.shape)
                 if (idx==0 or idx==len(self.layers)-1) and not self.use_same_dims:
-                    x = attn(x, attn_bias = attn_bias)
+                    x = attn(x, attn_bias = attn_bias) # B,3,latent code dim
                 else:
                     x = attn(x, attn_bias = attn_bias) + x
                 #print("x2 shape: ", x.shape)
                 x = ff(x) + x
                 #print("x3 shape: ", x.shape)
 
-        out = self.norm(x)
-        return self.project_out(out)
+        out = self.norm(x) # B,3,dim_latent_code
+        out = self.project_out(out)
+        return out
 
-class DiffusionNet(nn.Module):
+class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
 
     def __init__(
         self,
@@ -159,8 +160,8 @@ class DiffusionNet(nn.Module):
 
     def forward(
         self,
-        data, 
-        diffusion_timesteps,
+        data, # B,latent code dim
+        diffusion_timesteps, # [B]
         pass_cond=-1, # default -1, depends on prob; but pass as argument during sampling
 
     ):
@@ -169,8 +170,8 @@ class DiffusionNet(nn.Module):
             assert type(data) is tuple
             data, cond = data # adding noise to cond_feature so doing this in diffusion.py
 
-            #print("data, cond shape: ", data.shape, cond.shape) # B, dim_in_out; B, N, 3
-            #print("pass cond: ", pass_cond)
+            print("data, cond shape: ", data.shape, cond.shape) # B, dim_in_out; B, N, 3
+            print("pass cond: ", pass_cond)
             if self.cond_dropout:
                 # classifier-free guidance: 20% unconditional 
                 prob = torch.randint(low=0, high=10, size=(1,))
@@ -183,24 +184,25 @@ class DiffusionNet(nn.Module):
                     #print("cond shape: ", cond_feature.shape)
             else:
                 cond_feature = self.pointnet(cond, cond)
+                print("cond shape: ", cond_feature.shape)
 
             
         batch, dim, device, dtype = *data.shape, data.device, data.dtype
 
         num_time_embeds = self.num_time_embeds
-        time_embed = self.to_time_embeds(diffusion_timesteps)
+        time_embed = self.to_time_embeds(diffusion_timesteps) # [B, num_time_embeds, latent code dim]，由embeddings表示，学习优化得到
 
-        data = data.unsqueeze(1)
+        data = data.unsqueeze(1) # [B, 1, latent code dim]
 
-        learned_queries = repeat(self.learned_query, 'd -> b 1 d', b = batch)
+        learned_queries = repeat(self.learned_query, 'd -> b 1 d', b = batch) # [B, 1, latent code dim], self.learned_query 256 需要学习优化得到
 
-        model_inputs = [time_embed, data, learned_queries]
+        model_inputs = [time_embed, data, learned_queries] # 三部分: 可学习的time embeddings, 原始数据，可学习的queries
 
         if self.cond and not self.cross_attn:
             model_inputs.insert(0, cond_feature) # cond_feature defined in first loop above 
         
-        tokens = torch.cat(model_inputs, dim = 1) # (b, 3/4, d); batch and d=512 same across the model_inputs 
-        #print("tokens shape: ", tokens.shape)
+        tokens = torch.cat(model_inputs, dim = 1) # (b, 3 or 4, d); batch and d=512 same across the model_inputs 
+        print("tokens shape: ", tokens.shape)
 
         if self.cross_attn:
             cond_feature = None if not self.cond else cond_feature

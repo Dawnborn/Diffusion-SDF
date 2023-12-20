@@ -77,9 +77,9 @@ class SdfLoader(base.Dataset):
             #print("shapes after adding grid: ", pc.shape, sdf_xyz.shape, sdf_gt.shape, grid_xyz.shape, grid_gt.shape)
 
         data_dict = {
-                    "xyz":sdf_xyz.float().squeeze(),
-                    "gt_sdf":sdf_gt.float().squeeze(), 
-                    "point_cloud":pc.float().squeeze(),
+                    "xyz":sdf_xyz.float().squeeze(), # (B, N, 3)
+                    "gt_sdf":sdf_gt.float().squeeze(), # (B, N)
+                    "point_cloud":pc.float().squeeze(), # (B, 1024, 3)
                     }
 
         return data_dict
@@ -87,6 +87,20 @@ class SdfLoader(base.Dataset):
     def __len__(self):
         return len(self.gt_files)
 
+class SdfLoaderDIT(base.Dataset):
+    def __init__(self, data_source, split_file, subsample, gt_filename):
+        super().__init__(data_source, split_file, subsample, gt_filename)
+    def __getitem__(self,idx):
+
+        data_dict = {
+            "xyz":sdf_xyz.float().squeeze(),
+            "gt_sdf":sdf_gt.float().squeeze(), 
+            "point_cloud":pc.float().squeeze(),
+            }
+        return data_dict
 
 
-    
+# if __name__ == "__main__":
+#     specs = json.load("/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/mystage1_sdf/specs.json")
+#     split = json.load(open(specs["TrainSplit"], "r"))
+#     train_dataset = SdfLoader(specs["DataSource"], split, pc_size=specs.get("PCsize",1024), grid_source=specs.get("GridSource", None), modulation_path=specs.get("modulation_path", None))

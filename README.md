@@ -124,3 +124,39 @@ DALLE2-pytorch https://github.com/lucidrains/DALLE2-pytorch <br>
 Convolutional Occupancy Networks https://github.com/autonomousvision/convolutional_occupancy_networks (for PointNet encoder) <br>
 Multimodal Shape Completion via cGANs https://github.com/ChrisWu1997/Multimodal-Shape-Completion (for conditional metrics) <br>
 PointFlow https://github.com/stevenygd/PointFlow (for unconditional metrics)
+
+# My install
+
+```
+conda create -n hjp_diffusionsdf python=3.9
+
+pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+
+pip install pytorch-lightning==1.6.4
+
+pip install einops==0.6.0 einops_exts
+
+pip install trimesh
+```
+
+install `pytorch_scatter`
+
+```
+conda activate hjp_diffusionsdf
+
+git clone git@github.com:Dawnborn/pytorch_scatter.git
+
+cd pytorch_scatter
+
+python setup.py install
+```
+
+```
+pip install plyfile pandas joblib
+
+pip install scikit-image==0.19.2
+
+pip install open3d
+
+pip install rotary-embedding-torch==0.2.1
+```

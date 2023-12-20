@@ -1,0 +1,27 @@
+{
+  "Description" : "diffusion training (unconditional) on old sofa datset",
+  "TrainSplit" : "data/splits/sv2_sofas_train_manifoldplus_scanarcw_origpreprocess.json",
+  "TestSplit" : "data/splits/sv2_sofas_test_manifoldplus_scanarcw_origpreprocess.json",
+  "data_path" : "/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw/LatentCodes/train/2000/ScanARCW/",
+
+  "training_task": "diffusion",
+
+  "num_epochs" : 50001,
+  "log_freq" : 5000,
+
+  "diff_lr" : 1e-5,
+
+  "diffusion_specs" : {
+    "timesteps" : 1000,
+    "objective" : "pred_x0",
+    "loss_type" : "l2"
+  },
+  "diffusion_model_specs": {
+    "dim" : 256,
+    "dim_in_out" : 256,
+    "depth" : 4,
+    "ff_dropout" : 0.3,
+    "cond" : false
+  }
+}
+
