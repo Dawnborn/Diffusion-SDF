@@ -128,7 +128,7 @@ PointFlow https://github.com/stevenygd/PointFlow (for unconditional metrics)
 # My install
 
 ```
-conda create -n hjp_diffusionsdf python=3.9
+conda create -n hjp_diffusionsdfnew python=3.9
 
 pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
 
@@ -141,14 +141,23 @@ pip install trimesh
 
 install `pytorch_scatter`
 
-```
-conda activate hjp_diffusionsdf
+<!-- ```
+conda activate hjp_diffusionsdfnew
 
 git clone git@github.com:Dawnborn/pytorch_scatter.git
 
 cd pytorch_scatter
 
 python setup.py install
+``` -->
+
+wget https://data.pyg.org/whl/torch-1.11.0%2Bcu113/torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl
+
+pip install torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl
+
+测试
+```
+ from torch_scatter import scatter_max
 ```
 
 ```
@@ -160,3 +169,4 @@ pip install open3d
 
 pip install rotary-embedding-torch==0.2.1
 ```
+
