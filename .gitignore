@@ -4,3 +4,5 @@ config/*/code
 tensorboard_logs
 *.pth
 *.ckpt
+*.ply
+*.csv

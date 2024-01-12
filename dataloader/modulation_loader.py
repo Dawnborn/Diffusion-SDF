@@ -62,7 +62,6 @@ class ModulationLoader(torch.utils.data.Dataset):
         for dataset in split: # dataset = "acronym" 
             for class_name in split[dataset]:
                 for instance_name in split[dataset][class_name]:
-
                     if add_flip_augment:
                         for idx in range(4):
                             instance_filename = os.path.join(data_source, class_name, instance_name, "latent_{}.txt".format(idx))
@@ -73,12 +72,12 @@ class ModulationLoader(torch.utils.data.Dataset):
                         filepaths.append( os.path.join(pc_source, dataset, class_name, instance_name, "sdf_data.csv") )
 
                     else:
-                        instance_filename = os.path.join(data_source, class_name, instance_name, f_name)
+                        instance_filename = os.path.join(data_source, class_name, instance_name+".csv", f_name)
                         if not os.path.isfile(instance_filename):
-                            #print("Requested non-existent file '{}'".format(instance_filename))
+                            print("Requested non-existent file '{}'".format(instance_filename))
                             continue
                         files.append( torch.from_numpy(np.loadtxt(instance_filename)).float() )
-                        filepaths.append( os.path.join(pc_source, dataset, class_name, instance_name, "sdf_data.csv") )
+                        filepaths.append( os.path.join(pc_source, dataset, class_name, instance_name+".csv") )
         if return_filepaths:
             return files, filepaths
         return files
@@ -105,6 +104,8 @@ class ModulationLoader(torch.utils.data.Dataset):
 
                     else:
                         instance_filename = os.path.join(data_source, class_name, instance_name)
+                        if len(instance_name.split(".")) == 1:
+                            instance_filename = instance_filename + ".pth"
                         if not os.path.isfile(instance_filename):
                             # continue
                             raise RuntimeError

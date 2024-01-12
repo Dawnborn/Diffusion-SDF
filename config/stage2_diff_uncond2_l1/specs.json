@@ -6,15 +6,15 @@
 
   "training_task": "diffusion",
 
-  "num_epochs" : 60001,
-  "log_freq" : 5000,
+  "num_epochs" : 50001,
+  "log_freq" : 500,
 
   "diff_lr" : 1e-5,
 
   "diffusion_specs" : {
     "timesteps" : 1000,
     "objective" : "pred_x0",
-    "loss_type" : "l2"
+    "loss_type" : "l1"
   },
   "diffusion_model_specs": {
     "dim" : 256,

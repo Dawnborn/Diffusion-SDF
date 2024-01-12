@@ -27,7 +27,7 @@ def sample_pc(f, samp=1024, add_flip_augment=False):
     '''
     f: path to csv file
     '''
-    data = torch.from_numpy(pd.read_csv(f, sep=',',header=None).values).float()
+    data = torch.from_numpy(pd.read_csv(f, sep=',',header=None,comment="#").values).float()
     pc = data[data[:,-1]==0][:,:3]
     pc_idx = torch.randperm(pc.shape[0])[:samp] 
     pc = pc[pc_idx]

@@ -107,13 +107,13 @@ class BetaVAE(nn.Module):
         :return: (Tensor) List of latent codes
         """
         result = enc_input
-        result = self.encoder(enc_input)  # [B, D, 2, 2]
-        result = torch.flatten(result, start_dim=1) # ([32, D*4])
+        result = self.encoder(enc_input)  # [B, D, 2, 2] [16,768,2,2]
+        result = torch.flatten(result, start_dim=1)  # ([32, D*4]) [16,768*2*2]
 
         # Split the result into mu and var components
         # of the latent Gaussian distribution
-        mu = self.fc_mu(result)
-        log_var = self.fc_var(result)
+        mu = self.fc_mu(result)  # [16,768]
+        log_var = self.fc_var(result)  # [16,768]
 
         return [mu, log_var]
 
@@ -122,10 +122,10 @@ class BetaVAE(nn.Module):
         z: latent vector: B, D (D = latent_dim*3)
         '''
         
-        result = self.decoder_input(z) # ([32, D*4])
-        result = result.view(-1, int(result.shape[-1]/4), 2, 2)  # for plane features resolution 64x64, spatial resolution is 2x2 after the last encoder layer
-        result = self.decoder(result)
-        result = self.final_layer(result) # ([32, D, resolution, resolution])
+        result = self.decoder_input(z)  # [16,768]->[16,4*768] # ([32, D*4])
+        result = result.view(-1, int(result.shape[-1]/4), 2, 2)  # ->[16,768,2,2] # for plane features resolution 64x64, spatial resolution is 2x2 after the last encoder layer
+        result = self.decoder(result)  # ->[16,768,32,32]
+        result = self.final_layer(result) # ->[16,768,32,32] ([32, D, resolution, resolution])
         return result
 
     def reparameterize(self, mu: Tensor, logvar: Tensor) -> Tensor:
@@ -141,19 +141,20 @@ class BetaVAE(nn.Module):
         return eps * std + mu
 
     def forward(self, data: Tensor, **kwargs) -> Tensor:
-        mu, log_var = self.encode(data)
-        z = self.reparameterize(mu, log_var)
-        return  [self.decode(z), data, mu, log_var, z]
+        mu, log_var = self.encode(data)  # [16,768,64,64] -> ([16,768],[16,768])
+        z = self.reparameterize(mu, log_var)  # ([16,768],[16,768]) -> [16,768] 采样
+        out = self.decode(z)  # ->[16,768,64,64]
+        return [out, data, mu, log_var, z]
 
     # only using VAE loss
     def loss_function(self,
                       *args,
                       **kwargs) -> dict:
         self.num_iter += 1
-        recons = args[0]
-        data = args[1]
-        mu = args[2]
-        log_var = args[3]
+        recons = args[0]  # [16,768,64,64] reconstructed plane features
+        data = args[1]  # [16,768,64,64]
+        mu = args[2]  # [16,768]
+        log_var = args[3]  # [16,768]
         kld_weight = kwargs['M_N']  # Account for the minibatch samples from the dataset
         #print("recon, data shape: ", recons.shape, data.shape)
         #recons_loss = F.mse_loss(recons, data)
@@ -174,8 +175,8 @@ class BetaVAE(nn.Module):
             #gt_dist = normal_dist.sample(log_var.shape)
             #print("gt dist shape: ", gt_dist.shape)
 
-            kl = torch.distributions.kl.kl_divergence(sampled_dist, gt_dist) # reversed KL
-            kl_loss = reduce(kl, 'b ... -> b (...)', 'mean').mean()
+            kl = torch.distributions.kl.kl_divergence(sampled_dist, gt_dist) # reversed KL # [16,768]
+            kl_loss = reduce(kl, 'b ... -> b (...)', 'mean').mean()  # [1]
 
         return kld_weight * kl_loss
 

@@ -1,9 +1,9 @@
 {
     "Description" : "training joint SDF-VAE model for modulating SDFs on the couch dataset",
     "DataSource" : "data",
-    "GridSource" : "data/grid_data",
-    "TrainSplit" : "data/splits/couch_all.json",
-    "TestSplit" : "data/splits/couch_all.json",
+    "GridSource" : "data",
+    "TrainSplit" : "data/splits/sv2_sofas_train_manifoldplus_scanarcw_origpreprocess.json",
+    "TestSplit" : "data/splits/sv2_sofas_test_manifoldplus_scanarcw_origpreprocess.json",
     
     "training_task": "modulation",
   
@@ -18,7 +18,7 @@
     "PCsize" : 1024,
   
     "num_epochs" : 100001,
-    "log_freq" : 1000,
+    "log_freq" : 000,
     "kld_weight" : 1e-5,
     "latent_std" : 0.25,
   

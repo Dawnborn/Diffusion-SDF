@@ -1,3 +1,5 @@
+import pdb
+
 import torch
 import torch.utils.data
 from torch.nn import functional as F
@@ -67,19 +69,22 @@ class CombinedModel(pl.LightningModule):
 
     def train_modulation(self, x):
 
-        xyz = x['xyz']  # (B, N, 3)
-        gt = x['gt_sdf']  # (B, N)
+        xyz = x['xyz']  # (B, N:16000, 3)
+        gt = x['gt_sdf']  # (B, N:16000)
         pc = x['point_cloud']  # (B, 1024, 3)
 
         # STEP 1: obtain reconstructed plane feature and latent code 
-        plane_features = self.sdf_model.pointnet.get_plane_features(pc)
-        original_features = torch.cat(plane_features, dim=1)
-        out = self.vae_model(original_features)  # out = [self.decode(z), input, mu, log_var, z]
+        plane_features = self.sdf_model.pointnet.get_plane_features(pc)   # ([16, 256, 64, 64],[16, 256, 64, 64],[16, 256, 64, 64])
+        original_features = torch.cat(plane_features, dim=1)  # [16,256*3,64,64]
+        out = self.vae_model(original_features)  # ([16, 768, 64, 64],[16, 768, 64, 64],[16, 768],[16, 768],[16, 768]) out = [self.decode(z), input, mu, log_var, z]
         reconstructed_plane_feature, latent = out[0], out[-1]
 
-        # STEP 2: pass recon back to GenSDF pipeline 
+        # STEP 2: pass recon back to GenSDF pipeline
         pred_sdf = self.sdf_model.forward_with_plane_features(reconstructed_plane_feature, xyz)
-
+        if torch.isnan(pred_sdf).any():
+            print("NaN detected! Launching debugger.")
+            pdb.set_trace()
+        # pdb.set_trace()
         # STEP 3: losses for VAE and SDF
         # we only use the KL loss for the VAE; no reconstruction loss
         try:
@@ -88,8 +93,8 @@ class CombinedModel(pl.LightningModule):
             print("vae loss is nan at epoch {}...".format(self.current_epoch))
             return None  # skips this batch
 
-        sdf_loss = F.l1_loss(pred_sdf.squeeze(), gt.squeeze(), reduction='none')
-        sdf_loss = reduce(sdf_loss, 'b ... -> b (...)', 'mean').mean()
+        sdf_loss = F.l1_loss(pred_sdf.squeeze(), gt.squeeze(), reduction='none')  # ([16,16000], [16,16000]) -> [16,16000]
+        sdf_loss = reduce(sdf_loss, 'b ... -> b (...)', 'mean').mean()  # [16,16000] -> [1]
 
         loss = sdf_loss + vae_loss
 

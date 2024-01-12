@@ -1,48 +1,49 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import time 
+import time
 import logging
 import os
 import random
 import torch
 import torch.utils.data
 
-import pandas as pd 
+import pandas as pd
 import csv
+
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(
-        self,
-        data_source,
-        split_file, # json filepath which contains train/test classes and meshes 
-        subsample,
-        gt_filename,
-        #pc_size=1024,
+            self,
+            data_source,
+            split_file,  # json filepath which contains train/test classes and meshes
+            subsample,
+            gt_filename,
+            # pc_size=1024,
     ):
 
-        self.data_source = data_source 
+        self.data_source = data_source
         self.subsample = subsample
         self.split_file = split_file
         self.gt_filename = gt_filename
-        #self.pc_size = pc_size
+        # self.pc_size = pc_size
 
         # example
         # data_source: "data"
         # ws.sdf_samples_subdir: "SdfSamples"
         # self.gt_files[0]: "acronym/couch/meshname/sdf_data.csv"
-            # with gt_filename="sdf_data.csv"
+        # with gt_filename="sdf_data.csv"
 
     def __len__(self):
         return NotImplementedError
 
-    def __getitem__(self, idx):     
+    def __getitem__(self, idx):
         return NotImplementedError
 
     def sample_pointcloud(self, csvfile, pc_size):
-        f=pd.read_csv(csvfile, sep=',',header=None).values
+        f = pd.read_csv(csvfile, sep=',', header=None).values
 
-        f = f[f[:,-1]==0][:,:3]
+        f = f[f[:, -1] == 0][:, :3]
 
         if f.shape[0] < pc_size:
             pc_idx = np.random.choice(f.shape[0], pc_size)
@@ -53,22 +54,22 @@ class Dataset(torch.utils.data.Dataset):
 
     def labeled_sampling(self, f, subsample, pc_size=1024, load_from_path=True):
         """
-        :param f:
-        :param subsample:
-        :param pc_size:
+        :param f: path of sdf_samples
+        :param subsample: N of sdf samples
+        :param pc_size: sub sample point cloud for feature extraction
         :param load_from_path:
         :return:
         """
         if load_from_path:
             if os.path.basename(f).split(".")[-1] == "csv":
-                f=pd.read_csv(f, sep=',',header=None).values
+                f = pd.read_csv(f, sep=',', header=None).values
                 f = torch.from_numpy(f)
             elif os.path.basename(f).split(".")[-1] == "npz":
-                pass
+                f = np.load(f)
 
         half = int(subsample / 2)
-        neg_tensor = f[f[:,-1]<0]
-        pos_tensor = f[f[:,-1]>0]
+        neg_tensor = f[f[:, -1] < 0]
+        pos_tensor = f[f[:, -1] > 0]
 
         if pos_tensor.shape[0] < half:
             pos_idx = torch.randint(0, pos_tensor.shape[0], (half,))
@@ -76,8 +77,9 @@ class Dataset(torch.utils.data.Dataset):
             pos_idx = torch.randperm(pos_tensor.shape[0])[:half]
 
         if neg_tensor.shape[0] < half:
-            if neg_tensor.shape[0]==0:
-                neg_idx = torch.randperm(pos_tensor.shape[0])[:half] # no neg indices, then just fill with positive samples
+            if neg_tensor.shape[0] == 0:
+                neg_idx = torch.randperm(pos_tensor.shape[0])[
+                          :half]  # no neg indices, then just fill with positive samples
             else:
                 neg_idx = torch.randint(0, neg_tensor.shape[0], (half,))
         else:
@@ -85,42 +87,41 @@ class Dataset(torch.utils.data.Dataset):
 
         pos_sample = pos_tensor[pos_idx]
 
-        if neg_tensor.shape[0]==0:
+        if neg_tensor.shape[0] == 0:
             neg_sample = pos_tensor[neg_idx]
         else:
             neg_sample = neg_tensor[neg_idx]
 
-        pc = f[f[:,-1]==0][:,:3]  # choose sdf==0 surface point
+        pc = f[f[:, -1] == 0][:, :3]  # choose sdf==0 surface point
         pc_idx = torch.randperm(pc.shape[0])[:pc_size]  # randomly select only pc_size surface point
         pc = pc[pc_idx]
 
         samples = torch.cat([pos_sample, neg_sample], 0)
 
-        return pc.float().squeeze(), samples[:,:3].float().squeeze(), samples[:, 3].float().squeeze() # pc, xyz, sdv
+        return pc.float().squeeze(), samples[:, :3].float().squeeze(), samples[:, 3].float().squeeze()  # pc, xyz, sdv
 
+    def get_instance_filenames(self, data_source, split, gt_filename="sdf_data.csv", filter_modulation_path=None, suffix=".csv"):
 
-    def get_instance_filenames(self, data_source, split, gt_filename="sdf_data.csv", filter_modulation_path=None):
-            
-            do_filter = filter_modulation_path is not None 
-            csvfiles = []
-            for dataset in split: # e.g. "acronym" "shapenet"
-                for class_name in split[dataset]:
-                    for instance_name in split[dataset][class_name]:
-                        if dataset == "canonical_manifoldplus":
-                            instance_filename = os.path.join(data_source, dataset, class_name, instance_name)
-                        else:
-                            instance_filename = os.path.join(data_source, dataset, class_name, instance_name, gt_filename)
+        do_filter = filter_modulation_path is not None
+        csvfiles = []
+        for dataset in split:  # e.g. "acronym" "shapenet"
+            for class_name in split[dataset]:
+                for instance_name in split[dataset][class_name]:
+                    if dataset == "canonical_mesh_manifoldplus":
+                        instance_filename = os.path.join(data_source, dataset, class_name, instance_name+suffix)
+                    else:
+                        instance_filename = os.path.join(data_source, dataset, class_name, instance_name, gt_filename)
 
-                        if do_filter:
-                            mod_file = os.path.join(filter_modulation_path, class_name, instance_name, "latent.txt")
+                    if do_filter:
+                        mod_file = os.path.join(filter_modulation_path, class_name, instance_name, "latent.txt")
 
-                            # do not load if the modulation does not exist; i.e. was not trained by diffusion model
-                            if not os.path.isfile(mod_file):
-                                continue
-                        
-                        if not os.path.isfile(instance_filename):
-                            logging.warning("Requested non-existent file '{}'".format(instance_filename))
-                            raise Exception("Requested non-existent file '{}'".format(instance_filename))
+                        # do not load if the modulation does not exist; i.e. was not trained by diffusion model
+                        if not os.path.isfile(mod_file):
+                            continue
 
-                        csvfiles.append(instance_filename)
-            return csvfiles
+                    if not os.path.isfile(instance_filename):
+                        logging.warning("Requested non-existent file '{}'".format(instance_filename))
+                        raise Exception("Requested non-existent file '{}'".format(instance_filename))
+
+                    csvfiles.append(instance_filename)
+        return csvfiles

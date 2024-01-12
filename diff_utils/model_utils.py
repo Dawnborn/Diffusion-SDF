@@ -202,7 +202,7 @@ class Attention(nn.Module): #junpeng: attention机制, causal=True
         x = self.norm(x) # LayerNorm 在每个样本内部做归一化计算
         """
         self.to_q(x) B,3,dim_lattent(256) -> B,3,dim_head * heads(64*8)
-        self.to_lv(x) B,3,dim_lattent -> B,3,dim_head*2(64*2) -> B,3,dim_head
+        self.to_kv(x) B,3,dim_lattent -> B,3,dim_head*2(64*2) -> B,3,dim_head
         """
         q, k, v = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
 

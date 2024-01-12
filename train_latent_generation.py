@@ -27,12 +27,12 @@ from diff_utils.helpers import *
 from dataloader.pc_loader import PCloader, PCloaderDIT
 
 @torch.no_grad()
-def test_modulations():
+def train_modulations():
     
     # load dataset, dataloader, model checkpoint
-    test_split = json.load(open(specs["TestSplit"]))
-    test_dataset = PCloader(specs["DataSource"], test_split, pc_size=specs.get("PCsize",1024), return_filename=True)
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, num_workers=0)
+    train_split = json.load(open(specs["TrainSplit"]))
+    train_dataset = PCloader(specs["DataSource"], train_split, pc_size=specs.get("PCsize",1024), return_filename=True)
+    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=1, num_workers=0)
 
     ckpt = "{}.ckpt".format(args.resume) if args.resume == 'last' else "epoch={}.ckpt".format(args.resume)
     resume = os.path.join(args.exp_dir, ckpt)
@@ -41,15 +41,15 @@ def test_modulations():
     # filename for logging chamfer distances of reconstructed meshes
     cd_file = os.path.join(recon_dir, args.resume, "cd.csv")
 
-    with tqdm(test_dataloader) as pbar:
+    with tqdm(train_dataloader) as pbar:
         for idx, data in enumerate(pbar):
-            pbar.set_description("Files evaluated: {}/{}".format(idx, len(test_dataloader)))
+            pbar.set_description("Files evaluated: {}/{}".format(idx, len(train_dataloader)))
 
             point_cloud, filename = data # filename = path to the csv file of sdf data
             filename = filename[0] # filename is a tuple
 
             cls_name = filename.split("/")[-2]
-            mesh_name = filename.split("/")[-1]
+            mesh_name = filename.split("/")[-1].split(".")[0]
             outdir = os.path.join(recon_dir, args.resume, "{}".format(cls_name))
             os.makedirs(outdir, exist_ok=True)
             mesh_filename = os.path.join(outdir, mesh_name)
@@ -60,20 +60,11 @@ def test_modulations():
                 print("processing: {}",format(mesh_filename))
             
             # given point cloud, create modulations (e.g. 1D latent vectors)
-            plane_features = model.sdf_model.pointnet.get_plane_features(point_cloud.cuda())  # tuple, 3 items with ([1, D, resolution, resolution])
-            plane_features = torch.cat(plane_features, dim=1) # ([1, D*3, resolution, resolution])
-            recon = model.vae_model.generate(plane_features) # ([1, D*3, resolution, resolution]) [1,768,64,64]
+            # plane_features = model.sdf_model.pointnet.get_plane_features(point_cloud.cuda())  # tuple, 3 items with ([1, D, resolution, resolution])
+            # plane_features = torch.cat(plane_features, dim=1) # ([1, D*3, resolution, resolution])
+            # recon = model.vae_model.generate(plane_features) # ([1, D*3, resolution, resolution]) [1,768,64,64]
             #print("mesh filename: ", mesh_filename)
             # N is the grid resolution for marching cubes; set max_batch to largest number gpu can hold
-            mesh.create_mesh(model.sdf_model, recon, mesh_filename, N=256, max_batch=2**18, from_plane_features=True)
-
-            # load the created mesh (mesh_filename), and compare with input point cloud
-            # to calculate and log chamfer distance 
-            mesh_log_name = cls_name+"/"+mesh_name
-            try:
-                evaluate.main(point_cloud, mesh_filename, cd_file, mesh_log_name)
-            except Exception as e:
-                print(e)
 
 
             # save modulation vectors for training diffusion model for next stage
@@ -82,10 +73,10 @@ def test_modulations():
             try:
                 # skips modulations that have chamfer distance > 0.0018
                 # the filter also weighs gaps / empty space higher
-                cd = filter_threshold(mesh_filename, point_cloud)
-                if cd > 0.0018:
-                    print("mesh: {} {} larger than the threshold and will be skipped!!!".format(mesh_filename, cd))
-                    continue
+                # cd = filter_threshold(mesh_filename, point_cloud)
+                # if cd > 0.0018:
+                #     print("mesh: {} {} larger than the threshold and will be skipped!!!".format(mesh_filename, cd))
+                #     continue
                 outdir = os.path.join(latent_dir, "{}/{}".format(cls_name, mesh_name))
                 os.makedirs(outdir, exist_ok=True)
                 features = model.sdf_model.pointnet.get_plane_features(point_cloud.cuda())
@@ -202,8 +193,7 @@ if __name__ == "__main__":
     arg_parser.add_argument(
         "--resume", "-r",
         # default="last",
-        # default="9999",
-        default="4999",
+        default="9999",
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",
     )
 
@@ -222,7 +212,7 @@ if __name__ == "__main__":
     if specs['training_task'] == 'modulation':
         latent_dir = os.path.join(args.exp_dir, "modulations", args.resume)
         os.makedirs(latent_dir, exist_ok=True)
-        test_modulations()
+        train_modulations()
     elif specs['training_task'] == 'combined':
         test_generation()
 

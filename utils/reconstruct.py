@@ -138,6 +138,9 @@ def filter_threshold(mesh, gt_pc, threshold): # mesh is path to mesh without .pl
     cd = evaluate.main(gt_pc, mesh, None, None, return_value=True, prioritize_cov=True)
     return cd <= threshold
 
+def filter_threshold(mesh, gt_pc): # mesh is path to mesh without .ply ext
+    cd = evaluate.main(gt_pc, mesh, None, None, return_value=True, prioritize_cov=True)
+    return cd
 
 
 def extract_latents(test_dataloader, sdf_model, vae_model, save_dir):

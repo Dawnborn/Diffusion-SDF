@@ -65,7 +65,7 @@ class SdfModel(pl.LightningModule):
     def forward(self, pc, xyz):
         shape_features = self.pointnet(pc, xyz)
 
-        return self.model(xyz, shape_features).squeeze()
+        return self.model.forward(xyz, shape_features).squeeze()
 
     def forward_with_plane_features(self, plane_features, xyz):
         '''
@@ -73,5 +73,5 @@ class SdfModel(pl.LightningModule):
         xyz: B, N, 3
         '''
         point_features = self.pointnet.forward_with_plane_features(plane_features, xyz) # point_features: B, N, D
-        pred_sdf = self.model( torch.cat((xyz, point_features),dim=-1) )  
+        pred_sdf = self.model.forward( torch.cat((xyz, point_features),dim=-1) )
         return pred_sdf # [B, num_points] 

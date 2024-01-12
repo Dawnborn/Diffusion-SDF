@@ -150,7 +150,7 @@ class DiffusionModel(nn.Module):
 
         traj = []
 
-        x_T = default(noise, torch.randn(batch, dim, device=device))
+        x_T = default(noise, torch.randn(batch, dim, device=device)) # N(0,1)
 
         for t in reversed(range(0, self.num_timesteps)):
 
@@ -205,9 +205,11 @@ class DiffusionModel(nn.Module):
         noise = default(noise, lambda: torch.randn_like(x_start))  # B, latent code dim:256
 
         x = self.q_sample(x_start=x_start, t=t, noise=noise)  # B, latent code dim
+        # import pdb
+        # pdb.set_trace()
 
         model_in = (x, cond) if cond is not None else x  # 128, 256
-        model_out = self.model(model_in, t)  # 128 256 # DiffusionNet forward
+        model_out = self.model.forward(model_in, t)  # 128 256 # DiffusionNet forward
 
         if self.objective == 'pred_noise':
             target = noise
@@ -216,12 +218,15 @@ class DiffusionModel(nn.Module):
         else:
             raise ValueError(f'unknown objective {self.objective}')
 
+        # pdb.set_trace()
         loss = self.loss_fn(model_out, target, reduction='none')  # F1 loss
-        # loss = reduce(loss, 'b ... -> b (...)', 'mean', b = x_start.shape[0]) # only one dim of latent so don't need this line
+        # self.loss_fn(x, target, reduction='mean') # tensor(0.2621, device='cuda:0')
 
+        # loss = reduce(loss, 'b ... -> b (...)', 'mean', b = x_start.shape[0]) # only one dim of latent so don't need this line
         loss = loss * extract(self.p2_loss_weight, t, loss.shape)
         unreduced_loss = loss.detach().clone().mean(dim=1)
 
+        # pdb.set_trace()
         if ret_pred_x:
             return loss.mean(), x, target, model_out, unreduced_loss
         else:
@@ -262,7 +267,8 @@ class DiffusionModel(nn.Module):
         loss, x, target, model_out, unreduced_loss = self.forward(x_start, t, cond=pc, ret_pred_x=True)
         loss_100 = unreduced_loss[t < 100].mean().detach()
         loss_1000 = unreduced_loss[t > 100].mean().detach()
-
+        import pdb
+        # pdb.set_trace()
         return loss, loss_100, loss_1000, model_out, pc
 
     def generate_from_pc(self, pc, load_pc=False, batch=5, save_pc=False, return_pc=False, ddim=False, perturb_pc=True):

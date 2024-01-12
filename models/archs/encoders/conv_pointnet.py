@@ -1,3 +1,5 @@
+import pdb
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,8 +25,8 @@ class ConvPointnet(nn.Module):
         n_blocks (int): number of blocks ResNetBlockFC layers
     '''
 
-    def __init__(self, c_dim=512, dim=3, hidden_dim=128, scatter_type='max', 
-                 unet=True, unet_kwargs={"depth": 4, "merge_mode": "concat", "start_filts": 32}, 
+    def __init__(self, c_dim=512, dim=3, hidden_dim=128, scatter_type='max',
+                 unet=True, unet_kwargs={"depth": 4, "merge_mode": "concat", "start_filts": 32},
                  plane_resolution=64, plane_type=['xz', 'xy', 'yz'], padding=0.1, n_blocks=5,
                  inject_noise=False):
         super().__init__()
@@ -54,24 +56,30 @@ class ConvPointnet(nn.Module):
             self.scatter = scatter_mean
 
     def generate_plane_features(self, p, c, plane='xz'):
+        """
+        :param p: point cloud (B,N,3)
+        :param c: feature of point cloud (B,N,D)
+        :param plane:
+        :return:
+        """
         # acquire indices of features in plane
-        xy = self.normalize_coordinate(p.clone(), plane=plane, padding=self.padding) # normalize to the range of (0, 1)
-        index = self.coordinate2index(xy, self.reso_plane)
+        xy = self.normalize_coordinate(p.clone(), plane=plane, padding=self.padding) # normalize to the range of (0, 1) # (16,1024,2)
+        index = self.coordinate2index(xy, self.reso_plane) # ([16,1024,2],64) -> [16,1,1024]
 
         # scatter plane features from points
-        fea_plane = c.new_zeros(p.size(0), self.c_dim, self.reso_plane**2)
-        c = c.permute(0, 2, 1) # B x 512 x T
-        fea_plane = scatter_mean(c, index, out=fea_plane) # B x 512 x reso^2
+        fea_plane = c.new_zeros(p.size(0), self.c_dim, self.reso_plane**2) #
+        c = c.permute(0, 2, 1) # -> [16,256,1024]
+        fea_plane = scatter_mean(c, index, out=fea_plane) # B x 512 x reso^2 fea_plane:[16,256,reso_plane**2:4096]
         fea_plane = fea_plane.reshape(p.size(0), self.c_dim, self.reso_plane, self.reso_plane) # sparce matrix (B x 512 x reso x reso)
 
         # process the plane features with UNet
         if self.unet is not None:
-            fea_plane = self.unet(fea_plane)
+            fea_plane = self.unet(fea_plane)  # [16,256,64,64] -> [16,256,64,64]
 
-        return fea_plane 
+        return fea_plane
 
-    # takes in "p": point cloud and "query": sdf_xyz 
-    # sample plane features for unlabeled_query as well 
+    # takes in "p": point cloud and "query": sdf_xyz
+    # sample plane features for unlabeled_query as well
     def forward(self, p, query):
         batch_size, T, D = p.size()
 
@@ -88,8 +96,8 @@ class ConvPointnet(nn.Module):
             coord['yz'] = self.normalize_coordinate(p.clone(), plane='yz', padding=self.padding)
             index['yz'] = self.coordinate2index(coord['yz'], self.reso_plane)
 
-        
-        net = self.fc_pos(p)
+
+        net = self.fc_pos(p) # [16, 1024, 3]
 
         net = self.blocks[0](net)
         for block in self.blocks[1:]:
@@ -98,7 +106,7 @@ class ConvPointnet(nn.Module):
             net = block(net)
 
         c = self.fc_c(net)
-        
+
         fea = {}
         plane_feat_sum = 0
         #denoise_loss = 0
@@ -117,11 +125,15 @@ class ConvPointnet(nn.Module):
     # given plane features with dimensions (3*dim, 64, 64)
     # first reshape into the three planes, then generate query features from it 
     def forward_with_plane_features(self, plane_features, query):
-        # plane features shape: batch, dim*3, 64, 64
-        idx = int(plane_features.shape[1] / 3)
+        """
+        :param plane_features: [batch, dim*3, 64, 64]
+        :param query: [16,16000,3] point to query
+        :return:
+        """
+        idx = int(plane_features.shape[1] / 3)  # 256
         fea = {}
-        fea['xz'], fea['xy'], fea['yz'] = plane_features[:,0:idx,...], plane_features[:,idx:idx*2,...], plane_features[:,idx*2:,...]
-        #print("shapes: ", fea['xz'].shape, fea['xy'].shape, fea['yz'].shape) #([1, 256, 64, 64])
+        fea['xz'], fea['xy'], fea['yz'] = plane_features[:, 0:idx, ...], plane_features[:, idx:idx*2, ...], plane_features[:, idx*2:, ...]
+        # print("shapes: ", fea['xz'].shape, fea['xy'].shape, fea['yz'].shape) #([1, 256, 64, 64])
         plane_feat_sum = 0
 
         plane_feat_sum += self.sample_plane_feature(query, fea['xz'], 'xz')
@@ -157,8 +169,8 @@ class ConvPointnet(nn.Module):
         coord = {}
         index = {}
         if 'xz' in self.plane_type:
-            coord['xz'] = self.normalize_coordinate(p.clone(), plane='xz', padding=self.padding)
-            index['xz'] = self.coordinate2index(coord['xz'], self.reso_plane)
+            coord['xz'] = self.normalize_coordinate(p.clone(), plane='xz', padding=self.padding) # [16, 1024, 2]
+            index['xz'] = self.coordinate2index(coord['xz'], self.reso_plane) # [16, 1, 1024]
         if 'xy' in self.plane_type:
             coord['xy'] = self.normalize_coordinate(p.clone(), plane='xy', padding=self.padding)
             index['xy'] = self.coordinate2index(coord['xy'], self.reso_plane)
@@ -166,21 +178,26 @@ class ConvPointnet(nn.Module):
             coord['yz'] = self.normalize_coordinate(p.clone(), plane='yz', padding=self.padding)
             index['yz'] = self.coordinate2index(coord['yz'], self.reso_plane)
 
-        net = self.fc_pos(p)
+        # pdb.set_trace()
+        net = self.fc_pos(p) # [16, 1024, 3] -> [16, 1024, 128]
 
-        net = self.blocks[0](net)
+        net = self.blocks[0](net) # [16, 1024, 128] -> [16, 1024, 128]
         for block in self.blocks[1:]:
-            pooled = self.pool_local(coord, index, net)
+            pooled = self.pool_local(coord, index, net) # -> [16, 1024, 128]
             net = torch.cat([net, pooled], dim=2)
             net = block(net)
 
-        c = self.fc_c(net)
+        c = self.fc_c(net) # [16,1024,128] -> [16, 1024, 256]
 
         return c
 
     def get_plane_features(self, p):
+        """
+        :param p: (B,N_pcd,3)
+        :return:
+        """
 
-        c = self.get_point_cloud_features(p)
+        c = self.get_point_cloud_features(p) # c (B, 1024, 256)
         fea = {}
         if 'xz' in self.plane_type:
             fea['xz'] = self.generate_plane_features(p, c, plane='xz') # shape: batch, latent size, resolution, resolution (e.g. 16, 256, 64, 64)
@@ -222,6 +239,8 @@ class ConvPointnet(nn.Module):
         ''' Normalize coordinate to [0, 1] for unit cube experiments.
             Corresponds to our 3D model
 
+            index 表明其在2d plane上的位置 reso*row+col
+
         Args:
             x (tensor): coordinate
             reso (int): defined resolution
@@ -230,29 +249,44 @@ class ConvPointnet(nn.Module):
         x = (x * reso).long()
         index = x[:, :, 0] + reso * x[:, :, 1]
         index = index[:, None, :]
-        return index
+        return index # (B,1,N_pc)
 
 
-    # xy is the normalized coordinates of the point cloud of each plane 
+    # xy is the normalized coordinates of the point cloud of each plane
     # I'm pretty sure the keys of xy are the same as those of index, so xy isn't needed here as input 
     def pool_local(self, xy, index, c):
+        """
+
+        :param xy:
+        :param index:
+        :param c: (B,N,feat_dim)
+        :return: c_out (B,feat_dim,N)
+        """
+
         bs, fea_dim = c.size(0), c.size(2)
         keys = xy.keys()
 
         c_out = 0
         for key in keys:
             # scatter plane features from points
-            fea = self.scatter(c.permute(0, 2, 1), index[key], dim_size=self.reso_plane**2)
+            fea = self.scatter(c.permute(0, 2, 1), index[key], dim_size=self.reso_plane**2)  # (src:[16, 128, 1024], index:[16, 1, 1024], 4096)  -> ([16, 128, 4096], [16, 128, 4096])
             if self.scatter == scatter_max:
-                fea = fea[0]
+                fea = fea[0] # [16, 128, 4096]
             # gather feature back to points
-            fea = fea.gather(dim=2, index=index[key].expand(-1, fea_dim, -1))
-            c_out += fea
+            fea = fea.gather(dim=2, index=index[key].expand(-1, fea_dim, -1))  # [16,128,4096] -> [16,128,1024]
+            c_out += fea  # [16,128,1024]
         return c_out.permute(0, 2, 1)
 
     # sample_plane_feature function copied from /src/conv_onet/models/decoder.py
     # uses values from plane_feature and pixel locations from vgrid to interpolate feature
     def sample_plane_feature(self, query, plane_feature, plane):
+        """
+        点云投影到平面上得到feature
+        :param query:
+        :param plane_feature:
+        :param plane:
+        :return:
+        """
         xy = self.normalize_coordinate(query.clone(), plane=plane, padding=self.padding)
         xy = xy[:, :, None].float()
         vgrid = 2.0 * xy - 1.0 # normalize to (-1, 1)
@@ -260,8 +294,8 @@ class ConvPointnet(nn.Module):
         return sampled_feat
 
 
-def conv3x3(in_channels, out_channels, stride=1, 
-            padding=1, bias=True, groups=1):    
+def conv3x3(in_channels, out_channels, stride=1,
+            padding=1, bias=True, groups=1):
     return nn.Conv2d(
         in_channels,
         out_channels,
@@ -326,7 +360,7 @@ class UpConv(nn.Module):
     A helper Module that performs 2 convolutions and 1 UpConvolution.
     A ReLU activation follows each convolution.
     """
-    def __init__(self, in_channels, out_channels, 
+    def __init__(self, in_channels, out_channels,
                  merge_mode='concat', up_mode='transpose'):
         super(UpConv, self).__init__()
 
@@ -335,7 +369,7 @@ class UpConv(nn.Module):
         self.merge_mode = merge_mode
         self.up_mode = up_mode
 
-        self.upconv = upconv2x2(self.in_channels, self.out_channels, 
+        self.upconv = upconv2x2(self.in_channels, self.out_channels,
             mode=self.up_mode)
 
         if self.merge_mode == 'concat':
@@ -386,7 +420,7 @@ class UNet(nn.Module):
         the tranpose convolution (specified by upmode='transpose')
     """
 
-    def __init__(self, num_classes, in_channels=3, depth=5, 
+    def __init__(self, num_classes, in_channels=3, depth=5,
                  start_filts=64, up_mode='transpose', same_channels=False,
                  merge_mode='concat', **kwargs):
         """
@@ -408,7 +442,7 @@ class UNet(nn.Module):
             raise ValueError("\"{}\" is not a valid mode for "
                              "upsampling. Only \"transpose\" and "
                              "\"upsample\" are allowed.".format(up_mode))
-    
+
         if merge_mode in ('concat', 'add'):
             self.merge_mode = merge_mode
         else:
@@ -447,11 +481,11 @@ class UNet(nn.Module):
         # - careful! decoding only requires depth-1 blocks
         for i in range(depth-1):
             ins = outs
-            outs = ins // 2 if not same_channels else ins 
+            outs = ins // 2 if not same_channels else ins
             up_conv = UpConv(ins, outs, up_mode=up_mode,
                 merge_mode=merge_mode)
             self.up_convs.append(up_conv)
-            #print("up ins, outs: ", ins, outs)# [256, 128]...[64, 32]; final 32 to latent is done through self.conv_final 
+            #print("up ins, outs: ", ins, outs)# [256, 128]...[64, 32]; final 32 to latent is done through self.conv_final
 
         # add the list of modules to current module
         self.down_convs = nn.ModuleList(self.down_convs)
@@ -487,7 +521,7 @@ class UNet(nn.Module):
             x = module(before_pool, x)
             #print("up {} x2: ".format(i), x.shape)
         #exit()
-        
+
         # No softmax is used. This means you need to use
         # nn.CrossEntropyLoss is your training script,
         # as this module includes a softmax already.
