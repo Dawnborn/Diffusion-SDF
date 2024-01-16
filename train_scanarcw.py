@@ -18,18 +18,22 @@ import warnings
 from models import * 
 from utils import mesh, evaluate
 from utils.reconstruct import *
-from diff_utils.helpers import * 
+from diff_utils.helpers import *
 #from metrics.evaluation_metrics import *#compute_all_metrics
 #from metrics import evaluation_metrics
 
 from dataloader.sdf_loader import SdfLoader
 from dataloader.modulation_loader import ModulationLoader
-from dataloader.dataset_ScanARCW import ScanARCW_Dataset, build_dataloader
+from dataloader.dataset_ScanARCW import MyScanARCWDataset
 
 def train():
-    split_path = ""
 
-    dataset_train = build_dataloader(split_path, args.batch_size, cfg, mode=train)
+    dataset_train = MyScanARCWDataset(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw_origprep_all_mypretrainedb24_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/04256520",
+                               pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
+                               json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
+                               sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
+                               pc_size=1024
+                               )
 
     train_dataloader = torch.utils.data.DataLoader(
         dataset_train,
@@ -47,6 +51,18 @@ def train():
 
     model = CombinedModel(specs)
 
+    if args.resume is not None:
+        ckpt = "{}.ckpt".format(args.resume) if args.resume=='last' else "epoch={}.ckpt".format(args.resume)
+        resume = os.path.join(args.exp_dir, ckpt)
+        if not os.path.isfile(resume):
+            print("ckpt not found!!!")
+            resume = None
+
+    trainer = pl.Trainer(accelerator='gpu', devices=-1, precision=32, max_epochs=specs["num_epochs"], callbacks=callbacks, log_every_n_steps=1,
+                        default_root_dir=os.path.join("tensorboard_logs", args.exp_dir))
+    trainer.fit(model=model, train_dataloaders=train_dataloader, ckpt_path=resume)
+
+
 
 if __name__ == "__main__":
     import argparse
@@ -61,7 +77,8 @@ if __name__ == "__main__":
         # default="config/stage1dit_sdf_grid",
         # default="config/stage2_diff_uncond2_l1",
         # default="config/repro_stage1_sdf",
-        default="config/repro_stage2_diff_cond",
+        # default="config/repro_stage2_diff_cond",
+        default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/scanarcw_stage2_diff_cond",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(

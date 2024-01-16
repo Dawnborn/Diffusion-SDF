@@ -99,7 +99,7 @@ def remove_nan(tmp):
     mask = np.isnan(tmp[:,3])
     return tmp[~mask]
 
-class MyScanARCWLoader(torch.utils.data.Dataset):
+class MyScanARCWDataset(torch.utils.data.Dataset):
     def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000):
         super().__init__()
 
@@ -171,6 +171,7 @@ class MyScanARCWLoader(torch.utils.data.Dataset):
                 gt_translation_c2w = np.array(instance_info["gt_translation_c2w"])  # 3,
                 gt_rotation_mat_c2w = quaternion_list2rotmat(instance_info["gt_rotation_quat_wxyz_c2w"])
 
+                print(instance_info.keys())
                 pcd_world = load_pcd_raw(os.path.join(self.pcd_path_root, instance_info['segmented_cloud']))
 
                 pcd_world = farthest_point_sample(pcd_world, npoint=self.pc_size)
@@ -257,7 +258,7 @@ class MyScanARCWLoader(torch.utils.data.Dataset):
         return batch_
 
 if __name__ == "__main__":
-    dataset = MyScanARCWLoader(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw_origprep_all_mypretrainedb24_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/04256520",
+    dataset = MyScanARCWDataset(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw_origprep_all_mypretrainedb24_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/04256520",
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
                                sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
