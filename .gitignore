@@ -6,3 +6,4 @@ tensorboard_logs
 *.ckpt
 *.ply
 *.csv
+**lightning_logs

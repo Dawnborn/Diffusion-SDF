@@ -21,7 +21,11 @@ import torch.utils.data as Data
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+import random
+
 import pdb
+
+from tqdm import tqdm
 # class Instance:
 #     def __init__(self, instance_tuple: Tuple, data_cfg):
 #         pass
@@ -134,9 +138,13 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
         tmp_pcd_paths = os.listdir(self.pcd_path_root)
 
-        for i_name in tmp_latent_paths:
-            if i_name.split(".")[-1] in self.allowed_suffix:
-                self.latent_paths.append(os.path.join(self.latent_path_root, i_name))
+        print("initializing latent_paths and checking corresponding segmented pcd...")
+        for i_name in tqdm(tmp_latent_paths):
+            if not i_name.split(".")[-1] in self.allowed_suffix:
+                continue
+            if not self.check_corresponding_pcd_of_latent(i_name):
+                continue
+            self.latent_paths.append(os.path.join(self.latent_path_root, i_name))
                 
     def load_latent(self, latent_path):
         suffix = latent_path.split(".")[-1]
@@ -152,6 +160,37 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.latent_paths)
+
+    def check_corresponding_pcd_of_latent(self, latent_name):
+        scene_name, ins_id, obj_id = self.get_info_from_latent_name(l_name=latent_name)
+        json_path = os.path.join(self.json_file_root,scene_name+".json")
+        if not os.path.isfile(json_path):
+            import pdb
+            pdb.set_trace()
+            raise RuntimeError
+        else:
+            with open(json_path,'r') as f: # '/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/output/default_experiment_3_class/test_set.json'
+                raw = json.load(f)
+                instances_dict = raw[scene_name]['instances']
+                instance_info = instances_dict[ins_id]
+
+                scale_sdf2mesh = np.array(instance_info["scale_sdf2mesh"])  # 1,
+                translation_sdf2mesh = np.array(instance_info["translation_sdf2mesh"])  # 3,
+                gt_translation_c2w = np.array(instance_info["gt_translation_c2w"])  # 3,
+                gt_rotation_mat_c2w = quaternion_list2rotmat(instance_info["gt_rotation_quat_wxyz_c2w"])
+
+                # print(instance_info.keys())
+                pcd_file = instance_info.get('segmented_cloud', None)
+                if not pcd_file:
+                    print(scene_name)
+                    print(ins_id)
+                    print(instance_info)
+                    return False
+                pcd_path = os.path.join(self.pcd_path_root, pcd_file)
+                if not os.path.isfile(pcd_path):
+                    print(instance_info)
+                    return False
+        return True
 
     def load_corresponding_pcd_of_latent(self, latent_name):
         scene_name, ins_id, obj_id = self.get_info_from_latent_name(l_name=latent_name)
@@ -171,8 +210,18 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
                 gt_translation_c2w = np.array(instance_info["gt_translation_c2w"])  # 3,
                 gt_rotation_mat_c2w = quaternion_list2rotmat(instance_info["gt_rotation_quat_wxyz_c2w"])
 
-                print(instance_info.keys())
-                pcd_world = load_pcd_raw(os.path.join(self.pcd_path_root, instance_info['segmented_cloud']))
+                # print(instance_info.keys())
+                pcd_file = instance_info.get('segmented_cloud', None)
+                if not pcd_file:
+                    print(scene_name)
+                    print(ins_id)
+                    print(instance_info)
+                    import pdb; pdb.set_trace()
+                pcd_path = os.path.join(self.pcd_path_root, pcd_file)
+                if not os.path.isfile(pcd_path):
+                    print(instance_info)
+                    import pdb; pdb.set_trace()
+                pcd_world = load_pcd_raw(pcd_path)
 
                 pcd_world = farthest_point_sample(pcd_world, npoint=self.pc_size)
 
@@ -217,7 +266,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             return {
                 "latent" : latent,
                 "gt_sdf_xyzv" : gt_sdf,
-                "point_cloud": pc
+                "point_cloud": pc.astype(np.float32)
             }
         else:
             return {
@@ -264,6 +313,11 @@ if __name__ == "__main__":
                                sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
                                pc_size=1024
                                )
-    batch = dataset.check(1)
-    import pdb
-    pdb.set_trace()
+    l = len(dataset)
+    for i in range(10):
+        id = random.randint(0,l-1)
+        try:
+            batch = dataset.check(id)
+        except:
+            import pdb
+            pdb.set_trace()
