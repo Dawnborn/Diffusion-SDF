@@ -265,12 +265,14 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             pc = self.load_corresponding_pcd_of_latent(latent_name)
             return {
                 "latent" : latent,
+                "latent_path" : latent_path,
                 "gt_sdf_xyzv" : gt_sdf,
                 "point_cloud": pc.astype(np.float32)
             }
         else:
             return {
                 "latent": latent,
+                "latent_path" : latent_path,
                 "gt_sdf_xyzv": gt_sdf
             }
 

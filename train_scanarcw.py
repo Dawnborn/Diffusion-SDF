@@ -90,7 +90,7 @@ if __name__ == "__main__":
     )
 
     arg_parser.add_argument("--batch_size", "-b", default=70, type=int)
-    arg_parser.add_argument("--workers", "-w", default=6, type=int)
+    arg_parser.add_argument("--workers", "-w", default=12, type=int)
 
     args = arg_parser.parse_args()
     specs = json.load(open(os.path.join(args.exp_dir, "specs.json")))

@@ -9,14 +9,14 @@
   "training_task": "diffusion",
   
   "num_epochs" : 50001,
-  "log_freq" : 5000,
+  "log_freq" : 100,
 
   "diff_lr" : 1e-5,
 
   "diffusion_specs" : {
     "timesteps" : 1000,
     "objective" : "pred_x0",
-    "loss_type" : "l2",
+    "loss_type" : "l1",
     "perturb_pc" : "partial",
     "crop_percent": 0.5,
     "sample_pc_size" : 128
