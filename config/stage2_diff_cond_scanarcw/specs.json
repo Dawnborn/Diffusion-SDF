@@ -1,5 +1,5 @@
 {
-  "Description" : "diffusion training (conditional) on sofa dataset",
+  "Description" : "diffusion training (conditional) on sofa dataset 很快收敛到0.044",
   "pc_path" : "data",
   "total_pc_size" : 10000,
   "TrainSplit" : "data/splits/couch_all.json",
@@ -9,7 +9,7 @@
   "training_task": "diffusion",
   
   "num_epochs" : 50001,
-  "log_freq" : 100,
+  "log_freq" : 1000,
 
   "diff_lr" : 1e-5,
 

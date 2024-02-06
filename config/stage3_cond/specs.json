@@ -1,13 +1,13 @@
 {
   "Description" : "end-to-end training (conditional) on couch dataset",
   "DataSource" : "data",
-  "GridSource" : "grid_data",
-  "TrainSplit" : "data/splits/couch_all.json",
-  "TestSplit" : "data/splits/couch_all.json",
-  "modulation_path" : "config/stage1_sdf/modulations",
+  "GridSource" : "data/grid_data",
+  "TrainSplit" : "data/splits/sv2_sofas_train_manifoldplus_scanarcw_origpreprocess.json",
+  "TestSplit" : "data/splits/sv2_sofas_test_manifoldplus_scanarcw_origpreprocess.json",
+  "data_path" : "config/repro_stage1_sdf/modulations/9999",
 
-  "modulation_ckpt_path" : "config/stage1_sdf/last.ckpt",
-  "diffusion_ckpt_path" : "config/stage2_cond/last.ckpt",
+  "modulation_ckpt_path" : "config/repro_stage1_sdf/last.ckpt",
+  "diffusion_ckpt_path" : "config/repro_stage2_diff_cond/last.ckpt",
   
   "training_task": "combined",
 

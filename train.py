@@ -95,7 +95,8 @@ if __name__ == "__main__":
         # default="config/stage1dit_sdf_grid",
         # default="config/stage2_diff_uncond2_l1",
         # default="config/repro_stage1_sdf",
-        default="config/repro_stage2_diff_cond",
+        # default="config/repro_stage2_diff_cond",
+        # default="config/stage2_diff_cond_scanarcw",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
@@ -105,7 +106,7 @@ if __name__ == "__main__":
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",
     )
 
-    arg_parser.add_argument("--batch_size", "-b", default=30, type=int)
+    arg_parser.add_argument("--batch_size", "-b", default=1, type=int)
     arg_parser.add_argument("--workers", "-w", default=8, type=int)
 
     args = arg_parser.parse_args()

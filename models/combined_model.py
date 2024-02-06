@@ -10,9 +10,10 @@ from models import *
 
 
 class CombinedModel(pl.LightningModule):
-    def __init__(self, specs):
+    def __init__(self, specs, dataloader=None):
         super().__init__()
         self.specs = specs
+        self.dataloader = dataloader
 
         self.task = specs['training_task']  # 'combined' or 'modulation' or 'diffusion'
 
@@ -26,7 +27,7 @@ class CombinedModel(pl.LightningModule):
             self.vae_model = BetaVAE(in_channels=feature_dim * 3, latent_dim=modulation_dim, hidden_dims=hidden_dims,
                                      kl_std=latent_std)
 
-        if self.task in ('combined', 'diffusion'):
+        if self.task in ('combined', 'diffusion', 'combined2'):
             self.diffusion_model = DiffusionModel(model=DiffusionNet(**specs["diffusion_model_specs"]),
                                                   **specs["diffusion_specs"])
 
@@ -83,7 +84,7 @@ class CombinedModel(pl.LightningModule):
         pred_sdf = self.sdf_model.forward_with_plane_features(reconstructed_plane_feature, xyz)
         if torch.isnan(pred_sdf).any():
             print("NaN detected! Launching debugger.")
-            pdb.set_trace()
+            # pdb.set_trace()
         # pdb.set_trace()
         # STEP 3: losses for VAE and SDF
         # we only use the KL loss for the VAE; no reconstruction loss
@@ -131,8 +132,8 @@ class CombinedModel(pl.LightningModule):
     # the first half is the same as "train_sdf_modulation" the reconstructed latent is used as input to the diffusion
     # model, rather than loading latents from the dataloader as in "train_diffusion"
     def train_combined(self, x):
-        xyz = x['xyz']  # (B, N, 3)
-        gt = x['gt_sdf']  # (B, N)
+        xyz = x['gt_sdf_xyzv'][:,:3]  # (B, N, 3)
+        gt = x['gt_sdf_xyzv'][:,3]  # (B, N)
         pc = x['point_cloud']  # (B, 1024, 3)
 
         # STEP 1: obtain reconstructed plane feature for SDF and latent code for diffusion

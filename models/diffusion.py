@@ -22,6 +22,67 @@ import open3d as o3d
 # constants
 ModelPrediction = namedtuple('ModelPrediction', ['pred_noise', 'pred_x_start'])
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class CosineSimilarityLoss(nn.Module):
+    def __init__(self):
+        super(CosineSimilarityLoss, self).__init__()
+        self.cosine_similarity = nn.CosineSimilarity(dim=1)
+
+    def forward(self, input, target):
+        # 计算余弦相似度
+        cosine_loss = self.cosine_similarity(input, target)
+        # 将余弦相似度转换为损失值
+        # 由于余弦相似度范围是[-1, 1]，我们通过减去1并取绝对值来得到损失
+        # 这样相似度为1时损失为0，相似度为-1时损失为2
+        return torch.mean(1 - cosine_loss)
+class SinL1Loss(nn.Module):
+    def __init__(self):
+        super(SinL1Loss, self).__init__()
+
+    def forward(self, input, target, reduction):
+        # 计算 L1 损失
+        l1_loss = F.l1_loss(input, target, reduction=reduction)
+
+        # 计算 sin 项
+        print("--------------sinl1 loss")
+        print("l1_loss", l1_loss.shape)
+        sin_term = torch.sin(l1_loss)
+        print("sin_term", sin_term.shape)
+
+        # 将 L1 损失和 sin 项结合
+
+        # 计算最终的平均损失
+        return sin_term
+
+class CombinedCosineL1Loss(nn.Module):
+    def __init__(self):
+        super(CombinedCosineL1Loss, self).__init__()
+        self.cosine_similarity = nn.CosineSimilarity(dim=1)
+
+    def forward(self, input, target, reduction=None, ret_cos=False):
+        print("loss_function validation=======")
+        print("input shape: {}".format(input.shape))
+        print("target shape: {}".format(target.shape))
+        # 计算余弦相似度损失
+        cosine_loss = self.cosine_similarity(input, target)
+        cosine_loss = 1 - cosine_loss
+        print("cosine_loss shape: {}".format(cosine_loss.shape))
+
+        # 计算L1损失
+        l1_loss = F.l1_loss(input, target, reduction=reduction)
+        print("l1_loss: {}".format(l1_loss.shape))
+        print("l1_loss")
+
+        # 结合两种损失
+        combined_loss = cosine_loss.unsqueeze(1).expand_as(l1_loss) + l1_loss
+        print("combined_loss: {}".format(combined_loss.shape))
+        if ret_cos:
+            return combined_loss, cosine_loss.clone().detach()
+        else:
+            return combined_loss
 
 class DiffusionModel(nn.Module):
     def __init__(
@@ -54,7 +115,21 @@ class DiffusionModel(nn.Module):
         self.crop_percent = crop_percent
         assert self.perturb_pc in [None, "partial", "noisy"]
 
-        self.loss_fn = F.l1_loss if loss_type == 'l1' else F.mse_loss
+        self.loss_type = loss_type
+        # self.loss_fn2 = None
+        if loss_type == "l1":
+            self.loss_fn = F.l1_loss
+        elif loss_type == "l2": 
+            self.loss_fn = F.mse_loss
+        elif loss_type == "cos+l1":
+            self.loss_fn = CombinedCosineL1Loss()
+            # self.loss_fn = F.l1_loss
+            # self.loss_fn2 = CosineSimilarityLoss()
+        elif loss_type=="sinl1":
+            self.loss_fn = SinL1Loss()
+        else:
+            raise NotImplementedError
+
 
         # sampling related parameters
         self.sampling_timesteps = default(sampling_timesteps,
@@ -157,7 +232,7 @@ class DiffusionModel(nn.Module):
             time_cond = torch.full((batch,), t, device=device, dtype=torch.long)
 
             model_input = (x_T, cond) if cond is not None else x_T
-            pred_noise, x_start, *_ = self.model_predictions(model_input, time_cond)
+            pred_noise, x_start, *_ = self.model_predictions(model_input, time_cond) # model_input # ([1 768],[1,128,3])
             if clip_denoised:
                 x_start.clamp_(-1., 1.)
 
@@ -204,12 +279,25 @@ class DiffusionModel(nn.Module):
 
         noise = default(noise, lambda: torch.randn_like(x_start))  # B, latent code dim:256
 
-        x = self.q_sample(x_start=x_start, t=t, noise=noise)  # B, latent code dim
-        # import pdb
-        # pdb.set_trace()
+        print("x_start", x_start)
+        x = self.q_sample(x_start=x_start, t=t, noise=noise)  # B, latent code dim, 加噪过程
+        print("x_noised", x)
+        # import pdb; pdb.set_trace()
 
         model_in = (x, cond) if cond is not None else x  # 128, 256
         model_out = self.model.forward(model_in, t)  # 128 256 # DiffusionNet forward
+        print("x_denoised", model_out)
+
+        if x.shape[0] == 1:
+            print("at {}".format(t))
+            print("x_start mean{} max{} min{}".format(x_start.mean(), x_start.max(), x_start.min()))
+            print("x_noised mean{} max{} min{}".format(x.mean(), x.max(), x.min()))
+            print("x_denoised mean{} max{} min{}".format(model_out.mean(), model_out.max(), model_out.min()))
+            with torch.no_grad():
+                e1 = torch.abs(x - x_start)
+                e2 = torch.abs(model_out - x_start)
+                print("{} of digits reduced error".format((e1>e2).float().mean()))
+            # import pdb; pdb.set_trace()
 
         if self.objective == 'pred_noise':
             target = noise
@@ -219,25 +307,28 @@ class DiffusionModel(nn.Module):
             raise ValueError(f'unknown objective {self.objective}')
 
         # pdb.set_trace()
-        loss = self.loss_fn(model_out, target, reduction='none')  # F1 loss
+        if self.loss_type == "cos+l1":
+            loss, loss_cos = self.loss_fn(model_out, target, reduction='none') # loss_cos [B,
+        else:
+            loss = self.loss_fn(model_out, target, reduction='none')  # F1 loss [B, 256]
         # self.loss_fn(x, target, reduction='mean') # tensor(0.2621, device='cuda:0')
 
         # loss = reduce(loss, 'b ... -> b (...)', 'mean', b = x_start.shape[0]) # only one dim of latent so don't need this line
         loss = loss * extract(self.p2_loss_weight, t, loss.shape)
-        unreduced_loss = loss.detach().clone().mean(dim=1)
+        unreduced_loss = loss.detach().clone().mean(dim=1) # t steps [B,]
 
         # pdb.set_trace()
         if ret_pred_x:
-            return loss.mean(), x, target, model_out, unreduced_loss
+            return loss.mean(), x, target, model_out, unreduced_loss # loss.mean() -> [1,]
         else:
             return loss.mean(), unreduced_loss
 
-    def model_predictions(self, model_input, t):
+    def model_predictions(self, model_input, t, no_cond=False):
 
         # model_output1 = self.model(model_input, t, pass_cond=0)
         # model_output2 = self.model(model_input, t, pass_cond=1)
         # model_output = model_output2*5 - model_output1*4
-        model_output = self.model(model_input, t, pass_cond=1)
+        model_output = self.model.forward(model_input, t, pass_cond=1) # model_out B 256
 
         x = model_input[0] if type(model_input) is tuple else model_input
 
@@ -261,7 +352,11 @@ class DiffusionModel(nn.Module):
         t = torch.randint(0, self.num_timesteps, (x_start.shape[0],), device=x_start.device).long()
 
         # STEP 2: perturb condition
+
         pc = perturb_point_cloud(cond, self.perturb_pc, self.pc_size, self.crop_percent) if cond is not None else None
+        print("before perturb: ", cond.shape)
+        print("after perturb: ", pc.shape)
+        # import pdb; pdb.set_trace()
 
         # STEP 3: pass to forward function
         loss, x, target, model_out, unreduced_loss = self.forward(x_start, t, cond=pc, ret_pred_x=True)
@@ -271,7 +366,7 @@ class DiffusionModel(nn.Module):
         # pdb.set_trace()
         return loss, loss_100, loss_1000, model_out, pc
 
-    def generate_from_pc(self, pc, load_pc=False, batch=5, save_pc=False, return_pc=False, ddim=False, perturb_pc=True):
+    def generate_from_pc(self, pc, load_pc=False, batch=5, save_pc=False, return_pc=False, ddim=False, perturb_pc=True, no_cond=False):
         self.eval()
 
         with torch.no_grad():
@@ -303,11 +398,15 @@ class DiffusionModel(nn.Module):
                 o3d.io.write_point_cloud("{}/input_pc.ply".format(save_pc), pcd)
 
             sample_fn = self.ddim_sample if ddim else self.sample
-            samp, _ = sample_fn(dim=self.model.dim_in_out, batch_size=batch, traj=False, cond=input_pc)
+            if no_cond:
+                intput_pc = torch.zeros_like(input_pc)
+                samp, traj = sample_fn(dim=self.model.dim_in_out, batch_size=batch, traj=False, cond=intput_pc)
+            else:
+                samp, traj = sample_fn(dim=self.model.dim_in_out, batch_size=batch, traj=True, cond=input_pc)
 
         if return_pc:
-            return samp, perturbed_pc
-        return samp
+            return samp, perturbed_pc, traj
+        return samp, traj
 
     def generate_unconditional(self, num_samples):
         self.eval()

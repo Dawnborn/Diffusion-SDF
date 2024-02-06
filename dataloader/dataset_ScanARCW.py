@@ -104,7 +104,7 @@ def remove_nan(tmp):
     return tmp[~mask]
 
 class MyScanARCWDataset(torch.utils.data.Dataset):
-    def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000):
+    def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000, use_sdf=False, length=-1, times=1, pre_load=False):
         super().__init__()
 
         self.latent_path_root = latent_path_root  # /canonical_mesh_manifoldplus/04256520
@@ -118,12 +118,28 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
         self.conditional = bool(pcd_path_root)
 
+        self.pre_load = pre_load
+        self.use_sdf = use_sdf
+
         self.latent_paths = []
+        self.latent_dict = {}
+
         self.pcd_paths = []
+        self.pcd_dict = {}
 
         self.allowed_suffix = ["txt","pth"]
 
+        self.length = length
+
+        self.times = times
+
         self.get_latent_and_pc_paths()
+
+    def save_latent_paths(self, path="output.txt"):
+        with open(path, "w") as file:
+            for item in self.latent_paths:
+                file.write("%s\n" % item)
+        print("list is saved to {}".format(path))
 
     def get_info_from_latent_name(self, l_name):
         # input should be like
@@ -132,20 +148,39 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         ins_id = latent_name.split("_")[-1]
         obj_id = latent_name.split("_")[0]
         return scene, ins_id, obj_id
-    
-    def get_latent_and_pc_paths(self):
-        tmp_latent_paths = os.listdir(self.latent_path_root)
 
-        tmp_pcd_paths = os.listdir(self.pcd_path_root)
+    def get_latent_and_pc_paths(self):
+        tmp_latent_paths = sorted(os.listdir(self.latent_path_root))
+        current_length = 0
+        if self.length == -1:
+            self.length = len(tmp_latent_paths)
 
         print("initializing latent_paths and checking corresponding segmented pcd...")
         for i_name in tqdm(tmp_latent_paths):
             if not i_name.split(".")[-1] in self.allowed_suffix:
                 continue
-            if not self.check_corresponding_pcd_of_latent(i_name):
+            pcd_path = self.check_corresponding_pcd_of_latent(i_name)
+            if not pcd_path:
                 continue
-            self.latent_paths.append(os.path.join(self.latent_path_root, i_name))
-                
+            i_latent_path = os.path.join(self.latent_path_root, i_name)
+            self.latent_paths.append(i_latent_path)
+
+            if self.pre_load:
+                self.latent_dict[i_latent_path] = self.load_latent(i_latent_path)
+                self.pcd_dict[i_name.split(".")[0]] = self.load_corresponding_pcd_of_latent(i_name)
+
+            current_length += 1
+            if current_length >= self.length:
+                break
+
+        self.latent_paths = self.latent_paths*self.times
+
+    def load_latent_preloaded(self, latent_path):
+        if self.pre_load and latent_path in self.latent_dict.keys():
+            return self.latent_dict[latent_path]
+        else:
+            raise RuntimeError
+
     def load_latent(self, latent_path):
         suffix = latent_path.split(".")[-1]
         if suffix == "txt":
@@ -190,7 +225,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
                 if not os.path.isfile(pcd_path):
                     print(instance_info)
                     return False
-        return True
+        return pcd_path
 
     def load_corresponding_pcd_of_latent(self, latent_name):
         scene_name, ins_id, obj_id = self.get_info_from_latent_name(l_name=latent_name)
@@ -229,7 +264,13 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
                             np.linalg.inv(gt_rotation_mat_c2w) @ (pcd_world - gt_translation_c2w[np.newaxis, :]).T).T
                 pcd_sdfcoord = (pcd_meshcoord - translation_sdf2mesh[np.newaxis, :]) / scale_sdf2mesh
 
-        return pcd_sdfcoord
+        return pcd_sdfcoord.astype(np.float32)
+
+    def load_corresponding_pcd_of_latent_preloaded(self,latent_name):
+        if self.pre_load and latent_name in self.pcd_dict.keys():
+            return self.pcd_dict[latent_name]
+        else:
+            raise RuntimeError
 
     def get_corresponding_sdf_path_of_latent(self,latent_name):
         sdf_name = latent_name.split(".")[0] + ".npz"
@@ -257,24 +298,28 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
     def __getitem__(self,index):
         latent_path = self.latent_paths[index]
-        latent = self.load_latent(latent_path)
         latent_name = os.path.basename(latent_path).split(".")[0]
-        gt_sdf = self.load_corresponding_sdf_path_of_latent(latent_name)
+        ans_dict = {}
+
+        if self.pre_load:
+            latent = self.load_latent_preloaded(latent_path)
+        else:
+            latent = self.load_latent(latent_path)
+        ans_dict["latent"] = latent
+        ans_dict["latent_path"] = latent_path
+
+        if self.use_sdf:
+            gt_sdf = self.load_corresponding_sdf_path_of_latent(latent_name)
+            ans_dict['gt_sdf_xyzv'] = gt_sdf
 
         if self.conditional:
-            pc = self.load_corresponding_pcd_of_latent(latent_name)
-            return {
-                "latent" : latent,
-                "latent_path" : latent_path,
-                "gt_sdf_xyzv" : gt_sdf,
-                "point_cloud": pc.astype(np.float32)
-            }
-        else:
-            return {
-                "latent": latent,
-                "latent_path" : latent_path,
-                "gt_sdf_xyzv": gt_sdf
-            }
+            if self.pre_load:
+                pc = self.load_corresponding_pcd_of_latent_preloaded(latent_name)
+            else:
+                pc = self.load_corresponding_pcd_of_latent(latent_name)
+            ans_dict["point_cloud"] = pc
+
+        return ans_dict
 
     def check(self, index, output_root = "/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/output"):
         batch_ = self.__getitem__(index)
@@ -313,13 +358,15 @@ if __name__ == "__main__":
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
                                sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
-                               pc_size=1024
+                               pc_size=1024,
+                                use_sdf=True,
+                                pre_load=True,
+                                # length=10
                                )
     l = len(dataset)
     for i in range(10):
         id = random.randint(0,l-1)
-        try:
-            batch = dataset.check(id)
-        except:
-            import pdb
-            pdb.set_trace()
+        batch = dataset.check(id)
+        # except:
+        #     import pdb
+        #     pdb.set_trace()

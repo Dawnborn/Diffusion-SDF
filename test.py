@@ -26,8 +26,11 @@ from diff_utils.helpers import *
 
 from dataloader.pc_loader import PCloader, PCloaderDIT
 
+from dataloader.sdf_loader import SdfLoader
+from dataloader.modulation_loader import ModulationLoader
+
 @torch.no_grad()
-def test_modulations():
+def test_modulations(recon_mesh=True):
     
     # load dataset, dataloader, model checkpoint
     test_split = json.load(open(specs["TestSplit"]))
@@ -184,9 +187,56 @@ def test_generation():
                     plane_feature = plane_features[i].unsqueeze(0)
                     mesh.create_mesh(model.sdf_model, plane_feature, outdir+"/{}_recon".format(i), N=128, max_batch=2**21, from_plane_features=True)
             
+def test_generation_stage2(save_ptc=True):
+    ckpt = "{}.ckpt".format(args.resume) if args.resume == 'last' else "epoch={}.ckpt".format(args.resume)
+    print(ckpt)
+    resume = os.path.join(args.exp_dir, ckpt)
+    print(resume)
+    model = CombinedModel.load_from_checkpoint(resume, specs=specs).cuda().eval()
+    print(model.specs['diffusion_model_specs']['cond'])
+    test_split = json.load(open(specs["TestSplit"]))
+    train_split = json.load(open(specs["TrainSplit"]))
+    test_dataset = PCloader(specs["pc_path"], test_split, pc_size=specs.get("PCsize", 1024), return_filename=True)
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=1, num_workers=0)
 
+    with tqdm(test_dataloader) as pbar:
+        for idx, data in enumerate(pbar):
+            pbar.set_description("Files generated: {}/{}".format(idx, len(test_dataloader)))
 
-    
+            point_cloud, filename = data  # filename = path to the csv file of sdf data
+            filename = filename[0]  # filename is a tuple
+
+            cls_name = filename.split("/")[-3]
+            mesh_name = filename.split("/")[-2]
+            outdir = os.path.join(recon_dir, "{}/{}".format(cls_name, mesh_name))
+            ptc_out_dir = outdir.replace("recon","ptc")
+            os.makedirs(outdir, exist_ok=True)
+            os.makedirs(ptc_out_dir,exist_ok=True)
+
+            samples, perturbed_pc, traj = model.diffusion_model.generate_from_pc(point_cloud.cuda(), batch=1,
+                                                                           save_pc=False, return_pc=True)
+            # import pdb; pdb.set_trace()
+            for i in range(samples.shape[0]):
+                s = samples.cpu().numpy()
+                # np.savetxt(s,os.path.join())
+                print(s.shape)
+                save_path = os.path.join(outdir, os.path.basename(filename)+".txt")
+                print("save path:",save_path)
+                np.savetxt(save_path, s)
+                if save_ptc:
+                    ptc_save_path = os.path.join(ptc_out_dir, os.path.basename(filename))
+                    # save perturbed pc ply file for visualization
+                    pcd = o3d.geometry.PointCloud()
+                    pcd.points = o3d.utility.Vector3dVector(perturbed_pc.cpu().numpy().squeeze())
+                    o3d.io.write_point_cloud(ptc_save_path+".pcd", pcd)
+
+            # plane_features = model.vae_model.decode(samples)
+
+            # for i in range(len(plane_features)):
+            #     plane_feature = plane_features[i].unsqueeze(0)
+            #     mesh.create_mesh(model.sdf_model, plane_feature, outdir + "/{}_recon".format(i), N=128,
+            #                      max_batch=2 ** 21, from_plane_features=True)
+
 if __name__ == "__main__":
 
     import argparse
@@ -196,8 +246,9 @@ if __name__ == "__main__":
         "--exp_dir", "-e",
         # required=True,
         # default="config/stage1dit_sdf",
-        default="config/repro_stage1_sdf",
-        help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
+        # default="config/repro_stage1_sdf",
+        default="config/repro_stage2_diff_cond",
+        help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well."
     )
     arg_parser.add_argument(
         "--resume", "-r",
@@ -207,7 +258,7 @@ if __name__ == "__main__":
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",
     )
 
-    arg_parser.add_argument("--num_samples", "-n", default=5, type=int, help='number of samples to generate and reconstruct')
+    arg_parser.add_argument("--num_samples", "-n", default=1, type=int, help='number of samples to generate and reconstruct')
 
     arg_parser.add_argument("--filter", default=False, help='whether to filter when sampling conditionally')
 
@@ -225,5 +276,8 @@ if __name__ == "__main__":
         test_modulations()
     elif specs['training_task'] == 'combined':
         test_generation()
+    elif specs['training_task'] == 'diffusion':
+        print("test_generation_stage2")
+        test_generation_stage2()
 
   

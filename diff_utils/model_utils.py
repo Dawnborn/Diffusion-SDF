@@ -204,25 +204,27 @@ class Attention(nn.Module): #junpeng: attention机制, causal=True
         self.to_q(x) B,3,dim_lattent(256) -> B,3,dim_head * heads(64*8)
         self.to_kv(x) B,3,dim_lattent -> B,3,dim_head*2(64*2) -> B,3,dim_head
         """
-        q, k, v = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
+        q, k, v = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1)) # q 1,3,512 k 1 1024 64 v 1 1024 64
 
-        q = rearrange(q, 'b n (h d) -> b h n d', h = self.heads) # B,3,heads,dim_head
+        # import pdb; pdb.set_trace()
+
+        q = rearrange(q, 'b n (h d) -> b h n d', h = self.heads) # B,3,heads,dim_head [1, 8, 3, 64]
         q = q * self.scale # self.scale=0.0009765625
 
         # rotary embeddings
 
         if exists(self.rotary_emb):
-            q, k = map(self.rotary_emb.rotate_queries_or_keys, (q, k))
+            q, k = map(self.rotary_emb.rotate_queries_or_keys, (q, k)) # [1, 8, 3, 64] [1, 1024, 64]
 
         # add null key / value for classifier free guidance in prior net
 
-        nk, nv = repeat_many(self.null_kv.unbind(dim = -2), 'd -> b 1 d', b = b)
-        k = torch.cat((nk, k), dim = -2)
-        v = torch.cat((nv, v), dim = -2)
+        nk, nv = repeat_many(self.null_kv.unbind(dim = -2), 'd -> b 1 d', b = b) # [1, 1, 64], [1, 1, 64]
+        k = torch.cat((nk, k), dim = -2) # [1, 1025, 64]
+        v = torch.cat((nv, v), dim = -2) # [1, 1025, 64]
 
         # calculate query / key similarities
 
-        sim = einsum('b h i d, b j d -> b h i j', q, k)
+        sim = einsum('b h i d, b j d -> b h i j', q, k) # [1, 8, 3, 64], [1, 1025, 64] -> [1, 8, 3, 1025]
 
         # relative positional encoding (T5 style)
         #print("attn bias, sim shapes: ", attn_bias.shape, sim.shape)
@@ -248,13 +250,12 @@ class Attention(nn.Module): #junpeng: attention机制, causal=True
         sim = sim - sim.amax(dim = -1, keepdim = True).detach()
         sim = sim * self.pb_relax_alpha
 
-        attn = sim.softmax(dim = -1)
+        attn = sim.softmax(dim = -1) # [1, 8, 3, 1025]
         attn = self.dropout(attn)
 
         # aggregate values
 
-        out = einsum('b h i j, b j d -> b h i d', attn, v)
+        out = einsum('b h i j, b j d -> b h i d', attn, v) # -> [1, 8, 3, 64]
 
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
-
+        out = rearrange(out, 'b h n d -> b n (h d)') # -> [1, 3, 512]
+        return self.to_out(out) # [1, 3, 512] -> [1, 3, 256]

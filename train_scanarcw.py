@@ -15,17 +15,27 @@ import trimesh
 import warnings
 
 # add paths in model/__init__.py for new models
-from models import * 
+from models import *
 from utils import mesh, evaluate
 from utils.reconstruct import *
 from diff_utils.helpers import *
 #from metrics.evaluation_metrics import *#compute_all_metrics
 #from metrics import evaluation_metrics
 
-from dataloader.sdf_loader import SdfLoader
-from dataloader.modulation_loader import ModulationLoader
+
 from dataloader.dataset_ScanARCW import MyScanARCWDataset
 
+# 设置随机种子
+seed = 42
+
+# 设置随机种子用于PyTorch
+pl.seed_everything(seed)
+
+# 设置随机种子用于Numpy
+np.random.seed(seed)
+
+# 设置随机种子用于Python内置的random模块
+random.seed(seed)
 
 def train():
 
@@ -33,7 +43,10 @@ def train():
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
                                sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
-                               pc_size=1024
+                               pc_size=specs['diffusion_specs']['sample_pc_size'],
+                               length=specs.get('dataset_length', -1),
+                               times=specs.get('times', 1),
+                               pre_load=True
                                )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -43,14 +56,16 @@ def train():
     )
 
     # creates a copy of current code / files in the config folder
-    save_code_to_conf(args.exp_dir) 
+    save_code_to_conf(args.exp_dir)
+
+    print(args.exp_dir)
     
     # pytorch lightning callbacks 
     callback = ModelCheckpoint(dirpath=args.exp_dir, filename='{epoch}', save_top_k=-1, save_last=True, every_n_epochs=specs["log_freq"])
     lr_monitor = LearningRateMonitor(logging_interval='step')
     callbacks = [callback, lr_monitor]
 
-    model = CombinedModel(specs)
+    model = CombinedModel(specs, dataloader=train_dataloader)
 
     resume=None
     if args.resume is not None:
@@ -58,6 +73,7 @@ def train():
         resume = os.path.join(args.exp_dir, ckpt)
         if not os.path.isfile(resume):
             print("ckpt not found!!!")
+            resume=None
 
     trainer = pl.Trainer(accelerator='gpu', devices=-1, precision=32, max_epochs=specs["num_epochs"], callbacks=callbacks, log_every_n_steps=1,
                         default_root_dir=os.path.join("tensorboard_logs", args.exp_dir))
@@ -80,13 +96,31 @@ if __name__ == "__main__":
         # default="config/repro_stage1_sdf",
         # default="config/repro_stage2_diff_cond",
         default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw",
+        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw2",
+        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw10",
+        # default="config/stage2_diff_cond_scanarcw_l1_pc1024",
+        # default="config/stage2_diff_cond_scanarcw_l1_pc1024_10times42",
+        # default="config/stage2_diff_cond_scanarcw_sinl1_pc1024_10times42",
+        # default="config/stage2_diff_cond_scanarcw_sinl1_pc1024_10times42_nonperturb",
+        # default="/storage/user/lhao/hjp/ws_dditnach/Diffusion-SDF/config/stage3_cond",
+        # default="config/stage2_diff_cond_scanarcw_l1_1e-4_b70",
+        # default="config/stage2_diff_cond_scanarcw_l1_1e-4_nonperturb_b70",
+        # default="config/stage2_diff_cond_scanarcw_4times420_b280",
+        # default="config/stage2_diff_cond_scanarcw",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
         "--resume", "-r", 
-        # default="last",
-        default=None,
+        default="last",
+        # default="29999",
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",
+    )
+
+    arg_parser.add_argument(
+        "--end2end", 
+        # default="last",
+        default=False,
+        help="end to end supervision",
     )
 
     arg_parser.add_argument("--batch_size", "-b", default=70, type=int)

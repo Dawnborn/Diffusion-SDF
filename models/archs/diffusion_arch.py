@@ -85,11 +85,19 @@ class CausalTransformer(nn.Module): #junpeng: CausalTransformer
         self.cross_attn = cross_attn
 
     def forward(self, x, time_emb=None, context=None):
+        """
+
+        :param x: B [time_embed, data, learned_queries]
+        :param time_emb:
+        :param context:
+        :return:
+        """
+        # import pdb; pdb.set_trace()
         n, device = x.shape[1], x.device
 
         x = self.init_norm(x) # B,3,latent_code_dim ->
 
-        attn_bias = self.rel_pos_bias(n, n + 1, device = device)
+        attn_bias = self.rel_pos_bias(n, n + 1, device = device) # [8, 3, 4]
 
         if self.cross_attn:
             #assert context is not None 
@@ -163,30 +171,38 @@ class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
         data, # B,latent code dim
         diffusion_timesteps, # [B]
         pass_cond=-1, # default -1, depends on prob; but pass as argument during sampling
-
+        no_cond=False
     ):
 
         if self.cond:
-            assert type(data) is tuple
-            data, cond = data # adding noise to cond_feature so doing this in diffusion.py
+            if no_cond:
+                data, cond = data
+            else:
+                assert type(data) is tuple
+                data, cond = data # adding noise to cond_feature so doing this in diffusion.py
 
             print("data, cond shape: ", data.shape, cond.shape) # B, dim_in_out; B, N, 3
             print("pass cond: ", pass_cond)
             if self.cond_dropout:
-                # classifier-free guidance: 20% unconditional 
+                # classifier-free guidance: 20% unconditional # 80% unconditional
                 prob = torch.randint(low=0, high=10, size=(1,))
                 percentage = 8
                 if prob < percentage or pass_cond==0:
-                    cond_feature = torch.zeros( (cond.shape[0], cond.shape[1], self.point_feature_dim), device=data.device )
-                    #print("zeros shape: ", cond_feature.shape) 
+                    cond_feature = torch.zeros((cond.shape[0], cond.shape[1], self.point_feature_dim), device=data.device)
+                    #print("zeros shape: ", cond_feature.shape)
+                    print("cond feature shape: ", cond_feature.shape)
                 elif prob >= percentage or pass_cond==1:
-                    cond_feature = self.pointnet(cond, cond)
-                    #print("cond shape: ", cond_feature.shape)
+                    cond_feature = self.pointnet(cond, cond) # [B, N_ptc, 128]
+                    # np.save("/storage/user/lhao/hjp/ws_dditnach/Diffusion-SDF/repro_scanarcw.npy",cond_feature.cpu().numpy())
+                    print("cond feature shape: ", cond_feature.shape)
+                    # import pdb; pdb.set_trace()
+
             else:
                 cond_feature = self.pointnet(cond, cond)
-                print("cond shape: ", cond_feature.shape)
+                print("cond feature shape: ", cond_feature.shape) #
 
-            
+
+        # import pdb; pdb.set_trace()
         batch, dim, device, dtype = *data.shape, data.device, data.dtype
 
         num_time_embeds = self.num_time_embeds
@@ -194,19 +210,19 @@ class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
 
         data = data.unsqueeze(1) # [B, 1, latent code dim]
 
-        learned_queries = repeat(self.learned_query, 'd -> b 1 d', b = batch) # [B, 1, latent code dim], self.learned_query 256 需要学习优化得到
+        learned_queries = repeat(self.learned_query, 'd -> b 1 d', b = batch) # [B, 1, latent code dim], self.learned_query 256 需要学习优化得到 [-3,3] var 0.9
 
-        model_inputs = [time_embed, data, learned_queries] # 三部分: 可学习的time embeddings, 原始数据，可学习的queries
+        model_inputs = [time_embed, data, learned_queries] # 三部分: 可学习的time embeddings, 原始数据，可学习的queries ([1, 1, 256]) ([1, 1, 256]) ([1, 1, 256])
 
         if self.cond and not self.cross_attn:
-            model_inputs.insert(0, cond_feature) # cond_feature defined in first loop above 
+            model_inputs.insert(0, cond_feature) # cond_feature defined in first loop above
         
         tokens = torch.cat(model_inputs, dim = 1) # (b, 3 or 4, d); batch and d=512 same across the model_inputs 
-        print("tokens shape: ", tokens.shape)
+        print("tokens shape: ", tokens.shape) # [1 3 256]
 
         if self.cross_attn:
             cond_feature = None if not self.cond else cond_feature
-            #print("tokens shape: ", tokens.shape, cond_feature.shape)
+            #print("tokens shape: ", tokens.shape, cond_feature.shape)  # [1 3 256], [1,N_ptc,128]
             tokens = self.causal_transformer(tokens, context=cond_feature)
         else:
             tokens = self.causal_transformer(tokens)
