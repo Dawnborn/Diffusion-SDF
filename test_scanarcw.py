@@ -135,6 +135,7 @@ if __name__ == "__main__":
                                pc_size=specs['diffusion_specs']['sample_pc_size'],
                                length=specs.get('dataset_length', -1),
                                pre_load=True,
+                               use_sdf=False
                                )
     train_dataloader = torch.utils.data.DataLoader(
         dataset_train,

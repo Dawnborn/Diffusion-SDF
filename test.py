@@ -246,19 +246,19 @@ if __name__ == "__main__":
         "--exp_dir", "-e",
         # required=True,
         # default="config/stage1dit_sdf",
-        # default="config/repro_stage1_sdf",
-        default="config/repro_stage2_diff_cond",
+        default="config/repro_stage1_sdf",
+        # default="config/repro_stage2_diff_cond",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well."
     )
     arg_parser.add_argument(
         "--resume", "-r",
         # default="last",
-        # default="9999",
-        default="4999",
+        default="9999",
+        # default="4999",
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",
     )
 
-    arg_parser.add_argument("--num_samples", "-n", default=1, type=int, help='number of samples to generate and reconstruct')
+    arg_parser.add_argument("--num_samples", "-n", default=4, type=int, help='number of samples to generate and reconstruct')
 
     arg_parser.add_argument("--filter", default=False, help='whether to filter when sampling conditionally')
 

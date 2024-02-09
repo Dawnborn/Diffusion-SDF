@@ -6,7 +6,7 @@
 
   "training_task": "diffusion",
 
-  "num_epochs" : 50001,
+  "num_epochs" : 70001,
   "log_freq" : 500,
 
   "diff_lr" : 1e-5,

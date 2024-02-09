@@ -43,10 +43,11 @@ def train():
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
                                sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
-                               pc_size=specs['diffusion_specs']['sample_pc_size'],
+                               pc_size=specs['diffusion_specs'].get('sample_pc_size', 128),
                                length=specs.get('dataset_length', -1),
                                times=specs.get('times', 1),
-                               pre_load=True
+                               pre_load=True,
+                               conditional=specs["diffusion_model_specs"].get("cond", True)
                                )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -95,7 +96,7 @@ if __name__ == "__main__":
         # default="config/stage2_diff_uncond2_l1",
         # default="config/repro_stage1_sdf",
         # default="config/repro_stage2_diff_cond",
-        default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw",
+        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw",
         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw2",
         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw10",
         # default="config/stage2_diff_cond_scanarcw_l1_pc1024",
@@ -107,6 +108,7 @@ if __name__ == "__main__":
         # default="config/stage2_diff_cond_scanarcw_l1_1e-4_nonperturb_b70",
         # default="config/stage2_diff_cond_scanarcw_4times420_b280",
         # default="config/stage2_diff_cond_scanarcw",
+        default="config/stage2_diff_uncond2_l1",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(

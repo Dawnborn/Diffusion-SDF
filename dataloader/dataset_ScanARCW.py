@@ -104,7 +104,7 @@ def remove_nan(tmp):
     return tmp[~mask]
 
 class MyScanARCWDataset(torch.utils.data.Dataset):
-    def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000, use_sdf=False, length=-1, times=1, pre_load=False):
+    def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000, conditional=True, use_sdf=False, length=-1, times=1, pre_load=False):
         super().__init__()
 
         self.latent_path_root = latent_path_root  # /canonical_mesh_manifoldplus/04256520
@@ -116,7 +116,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         self.pc_size = pc_size
         self.sdf_size = sdf_size
 
-        self.conditional = bool(pcd_path_root)
+        self.conditional = (conditional and bool(pcd_path_root))
 
         self.pre_load = pre_load
         self.use_sdf = use_sdf
@@ -126,6 +126,10 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
         self.pcd_paths = []
         self.pcd_dict = {}
+
+        # self.mesh_paths = []
+        self.mesh_paths_dict = {}
+        self.transformations_dict = {}
 
         self.allowed_suffix = ["txt","pth"]
 
@@ -167,7 +171,8 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
             if self.pre_load:
                 self.latent_dict[i_latent_path] = self.load_latent(i_latent_path)
-                self.pcd_dict[i_name.split(".")[0]] = self.load_corresponding_pcd_of_latent(i_name)
+                if self.conditional:
+                    self.pcd_dict[i_name.split(".")[0]] = self.load_corresponding_pcd_of_latent(i_name)
 
             current_length += 1
             if current_length >= self.length:
@@ -209,11 +214,6 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
                 instances_dict = raw[scene_name]['instances']
                 instance_info = instances_dict[ins_id]
 
-                scale_sdf2mesh = np.array(instance_info["scale_sdf2mesh"])  # 1,
-                translation_sdf2mesh = np.array(instance_info["translation_sdf2mesh"])  # 3,
-                gt_translation_c2w = np.array(instance_info["gt_translation_c2w"])  # 3,
-                gt_rotation_mat_c2w = quaternion_list2rotmat(instance_info["gt_rotation_quat_wxyz_c2w"])
-
                 # print(instance_info.keys())
                 pcd_file = instance_info.get('segmented_cloud', None)
                 if not pcd_file:
@@ -221,10 +221,26 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
                     print(ins_id)
                     print(instance_info)
                     return False
+                    
                 pcd_path = os.path.join(self.pcd_path_root, pcd_file)
                 if not os.path.isfile(pcd_path):
                     print(instance_info)
                     return False
+                
+                scale_sdf2mesh = np.array(instance_info["scale_sdf2mesh"])  # 1,
+                translation_sdf2mesh = np.array(instance_info["translation_sdf2mesh"])  # 3,
+                gt_translation_c2w = np.array(instance_info["gt_translation_c2w"])  # 3,
+                gt_rotation_mat_c2w = quaternion_list2rotmat(instance_info["gt_rotation_quat_wxyz_c2w"])
+
+                transformation_c2w = {}
+                transformation_c2w["scale_sdf2mesh"] = scale_sdf2mesh
+                transformation_c2w["translation_sdf2mesh"] = translation_sdf2mesh
+                transformation_c2w["gt_translation_c2w"] = gt_translation_c2w
+                transformation_c2w["gt_rotation_quat_wxyz_c2w"] = gt_rotation_mat_c2w
+
+                self.transformations_dict[latent_name] = transformation_c2w
+                self.mesh_paths_dict[latent_name] = instance_info["gt_scaled_canonical_mesh"]
+
         return pcd_path
 
     def load_corresponding_pcd_of_latent(self, latent_name):
@@ -312,12 +328,16 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             gt_sdf = self.load_corresponding_sdf_path_of_latent(latent_name)
             ans_dict['gt_sdf_xyzv'] = gt_sdf
 
+        # if self.ret_mesh_path:
+        #     mesh_path = self.load_corresponding_mesh_path_of_latent(latent_name)
+        #     ans_dict['mesh_path'] = mesh_path
+        #     ans_dict['mesh_scale'] = 
+
         if self.conditional:
             if self.pre_load:
                 pc = self.load_corresponding_pcd_of_latent_preloaded(latent_name)
             else:
                 pc = self.load_corresponding_pcd_of_latent(latent_name)
-            ans_dict["point_cloud"] = pc
 
         return ans_dict
 
