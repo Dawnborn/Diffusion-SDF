@@ -7,6 +7,9 @@ from numpy.linalg import norm
 from scipy.optimize import linear_sum_assignment
 from tqdm import tqdm
 
+import trimesh
+import numpy as np
+from scipy.spatial import ConvexHull
 
 # Borrow from https://github.com/ThibaultGROUEIX/AtlasNet
 def distChamfer(a, b):
@@ -400,6 +403,38 @@ def _jsdiv(P, Q):
 
     return 0.5 * (_kldiv(P_, M) + _kldiv(Q_, M))
 
+def load_mesh(file_path):
+    # 加载mesh文件
+    return trimesh.load(file_path, force='mesh')
+
+def mesh_to_points(mesh, count=100000):
+    # 将mesh表面采样为点集
+    return mesh.sample(count)
+
+def compute_convex_hull_volume(points):
+    # 计算点集的凸包体积
+    hull = ConvexHull(points)
+    return hull.volume
+
+def compute_iou(mesh1, mesh2, sample_count=100000):
+    # 将两个mesh表面采样为点集
+    points1 = mesh_to_points(mesh1, count=sample_count)
+    points2 = mesh_to_points(mesh2, count=sample_count)
+    
+    # 分别计算两个点集的凸包体积
+    volume1 = compute_convex_hull_volume(points1)
+    volume2 = compute_convex_hull_volume(points2)
+    
+    # 计算两个点集的并集体积
+    union_points = np.concatenate([points1, points2], axis=0)
+    union_volume = compute_convex_hull_volume(union_points)
+    
+    # 计算交集体积（使用容斥原理）
+    intersection_volume = volume1 + volume2 - union_volume
+    
+    # 计算IoU
+    iou = intersection_volume / union_volume
+    return iou
 
 if __name__ == "__main__":
     #from pytorch_structural_losses.nn_distance import nn_distance # need to make
