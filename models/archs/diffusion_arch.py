@@ -89,13 +89,13 @@ class CausalTransformer(nn.Module): #junpeng: CausalTransformer
 
         :param x: B [time_embed, data, learned_queries]
         :param time_emb:
-        :param context:
+        :param context: B, N_group 或者是 N_point, l_dim
         :return:
         """
         # import pdb; pdb.set_trace()
         n, device = x.shape[1], x.device
 
-        x = self.init_norm(x) # B,3,latent_code_dim ->
+        x = self.init_norm(x) # B,3,latent_code_dim (5,3,256) ->
 
         attn_bias = self.rel_pos_bias(n, n + 1, device = device) # [8, 3, 4]
 
@@ -161,7 +161,12 @@ class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
         self.learned_query = nn.Parameter(torch.randn(self.dim_in_out))
         self.causal_transformer = CausalTransformer(dim = dim, dim_in_out=self.dim_in_out, **kwargs)
 
-        if cond:
+        if cond is None:
+            pass
+        elif cond == "ddit_local":
+            from .DDITmodel import DDIT_modelLocal
+            self.pointnet = DDIT_modelLocal(config=kwargs["ddit_specs"])
+        else:
             # output dim of pointnet needs to match model dim; unless add additional linear layer
             self.pointnet = ConvPointnet(c_dim=self.point_feature_dim) 
 
@@ -181,7 +186,7 @@ class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
                 assert type(data) is tuple
                 data, cond = data # adding noise to cond_feature so doing this in diffusion.py
 
-            print("data, cond shape: ", data.shape, cond.shape) # B, dim_in_out; B, N, 3
+            # print("data, cond shape: ", data.shape, cond.shape) # B, dim_in_out; B, N, 3
             print("pass cond: ", pass_cond)
             if self.cond_dropout:
                 # classifier-free guidance: 20% unconditional # 80% unconditional
@@ -192,14 +197,21 @@ class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
                     #print("zeros shape: ", cond_feature.shape)
                     print("cond feature shape: ", cond_feature.shape)
                 elif prob >= percentage or pass_cond==1:
-                    cond_feature = self.pointnet(cond, cond) # [B, N_ptc, 128]
-                    # np.save("/storage/user/lhao/hjp/ws_dditnach/Diffusion-SDF/repro_scanarcw.npy",cond_feature.cpu().numpy())
+                    if self.cond == "ddit_local":
+                        cond_feature = self.pointnet(cond, cond) # [B, N_ptc, 128]
+
+                    else:
+                        cond_feature = self.pointnet(cond, cond)
+                        # np.save("/storage/user/lhao/hjp/ws_dditnach/Diffusion-SDF/repro_scanarcw.npy",cond_feature.cpu().numpy())
                     print("cond feature shape: ", cond_feature.shape)
                     # import pdb; pdb.set_trace()
 
             else:
                 cond_feature = self.pointnet(cond, cond)
-                print("cond feature shape: ", cond_feature.shape) #
+                try:
+                    print("cond feature shape: ", cond_feature.shape) #
+                except:
+                    pass
 
 
         # import pdb; pdb.set_trace()
@@ -223,7 +235,7 @@ class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
         if self.cross_attn:
             cond_feature = None if not self.cond else cond_feature
             #print("tokens shape: ", tokens.shape, cond_feature.shape)  # [1 3 256], [1,N_ptc,128]
-            tokens = self.causal_transformer(tokens, context=cond_feature)
+            tokens = self.causal_transformer(tokens, context=cond_feature) # [B, N, dim
         else:
             tokens = self.causal_transformer(tokens)
 
