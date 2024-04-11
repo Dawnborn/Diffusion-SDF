@@ -43,11 +43,15 @@ def train():
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
                                sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
+                               split_file=specs.get(["TrainSplit"],None),
                                pc_size=specs['diffusion_specs'].get('sample_pc_size', 128),
                                length=specs.get('dataset_length', -1),
                                times=specs.get('times', 1),
-                               pre_load=True,
-                               conditional=specs["diffusion_model_specs"].get("cond", True)
+                               pre_load=args.pre_load,
+                               conditional=specs["diffusion_model_specs"].get("cond", True),
+                               include_category=False,
+                               use_neighbor=specs.get('use_neighbor', False),
+                               preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/experiment_1_class_alter_NptcUsdf_repro"
                                )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -108,13 +112,16 @@ if __name__ == "__main__":
         # default="config/stage2_diff_cond_scanarcw_l1_1e-4_nonperturb_b70",
         # default="config/stage2_diff_cond_scanarcw_4times420_b280",
         # default="config/stage2_diff_cond_scanarcw",
-        default="config/stage2_diff_uncond2_l1",
+        # default="config/stage2_diff_uncond2_l1",
+        # default="config/ddit_stage2_diff_cond",
+        default="config/ddit_stage2_diff_cond",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
         "--resume", "-r", 
         default="last",
         # default="29999",
+        # default="26999",
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",
     )
 
@@ -125,8 +132,10 @@ if __name__ == "__main__":
         help="end to end supervision",
     )
 
-    arg_parser.add_argument("--batch_size", "-b", default=70, type=int)
+    arg_parser.add_argument("--batch_size", "-b", default=5, type=int)
     arg_parser.add_argument("--workers", "-w", default=12, type=int)
+    # arg_parser.add_argument("--pre_load", "-p", default=False, type=bool)
+    arg_parser.add_argument("--pre_load", "-p", action='store_true')
 
     args = arg_parser.parse_args()
     specs = json.load(open(os.path.join(args.exp_dir, "specs.json")))

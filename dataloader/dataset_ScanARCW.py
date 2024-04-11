@@ -24,6 +24,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 import random
 
 import pdb
+import pandas as pd
 
 from tqdm import tqdm
 # class Instance:
@@ -104,19 +105,22 @@ def remove_nan(tmp):
     return tmp[~mask]
 
 class MyScanARCWDataset(torch.utils.data.Dataset):
-    def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000, conditional=True, use_sdf=False, length=-1, times=1, pre_load=False):
+    def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000, conditional=True, use_sdf=False, length=-1, times=1, pre_load=False, include_category=False, preprocess=None, use_neighbor=False):
         super().__init__()
 
         self.latent_path_root = latent_path_root  # /canonical_mesh_manifoldplus/04256520
         self.pcd_path_root = pcd_path_root  # DATA/ScanARCW/segmented_pcd
         self.json_file_root = json_file_root  # /DATA/ScanARCW/json_files_v5
         self.sdf_file_root = sdf_file_root  # /home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520
-
+        
         self.split_file = split_file
+        self.preprocess = preprocess
+
         self.pc_size = pc_size
         self.sdf_size = sdf_size
 
         self.conditional = (conditional and bool(pcd_path_root))
+        self.use_neighbor = use_neighbor and bool(preprocess)
 
         self.pre_load = pre_load
         self.use_sdf = use_sdf
@@ -126,6 +130,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
         self.pcd_paths = []
         self.pcd_dict = {}
+        self.neighbor_pcd_dict = {}
 
         # self.mesh_paths = []
         self.mesh_paths_dict = {}
@@ -146,7 +151,8 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         print("list is saved to {}".format(path))
 
     def get_info_from_latent_name(self, l_name):
-        # input should be like
+        # input should be like: 1a4a8592046253ab5ff61a3a2a0e2484_scene0484_00_ins_1.pth
+        l_name = os.path.basename(l_name)
         latent_name = l_name.split(".")[0]
         scene = latent_name.split("_")[1]+"_"+latent_name.split("_")[2]
         ins_id = latent_name.split("_")[-1]
@@ -154,7 +160,25 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         return scene, ins_id, obj_id
 
     def get_latent_and_pc_paths(self):
+        """
+                initialization of the class
+        :return:
+        """
         tmp_latent_paths = sorted(os.listdir(self.latent_path_root))
+
+        # if split_file, only support single category!
+        if self.split_file:
+            with open(self.split_file, 'r') as file:
+                data = json.load(file)
+            for ds_name in data.keys():
+                dict_labels = data[ds_name]
+                for label in dict_labels.keys():
+                    list_ins = dict_labels[label]
+            
+            print("all tmp_latent_paths:{}".format(len(tmp_latent_paths)))
+            tmp_latent_paths = [tmp_latent_path for tmp_latent_path in tmp_latent_paths if tmp_latent_path.split(".")[0] in list_ins]
+        print("now using for training:{}".format(len(tmp_latent_paths)))
+
         current_length = 0
         if self.length == -1:
             self.length = len(tmp_latent_paths)
@@ -173,12 +197,44 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
                 self.latent_dict[i_latent_path] = self.load_latent(i_latent_path)
                 if self.conditional:
                     self.pcd_dict[i_name.split(".")[0]] = self.load_corresponding_pcd_of_latent(i_name)
-
             current_length += 1
             if current_length >= self.length:
                 break
 
         self.latent_paths = self.latent_paths*self.times
+        print("=========latent indexing finished!")
+
+        if self.use_neighbor:
+            print("=========start indexing neighbor pcds!")
+            json_file_path = os.path.join(self.preprocess,"preprocess.json")
+            with open(json_file_path, "r") as f:
+                data = json.load(f)
+            rows = []
+            # 遍历JSON中的每个对象
+            for item in data:
+                scene_name = item['scene_name']
+                obj_id = item['id']
+                category = item['category']
+                neighbour_ids = item['neighbour_id']
+                neighbour_ious = item['neighbour_iou']
+                row = {
+                    'scene_name': scene_name,
+                    'id': obj_id,
+                    'category': category,
+                    'neighbour_ids': neighbour_ids,
+                    'neighbour_ious': neighbour_ious
+                }
+                rows.append(row)
+            # 使用rows列表创建DataFrame
+            df = pd.DataFrame(rows)
+            df.set_index(['scene_name', 'id'], inplace=True)
+            self.neighbor_info_df = df
+            
+            if self.pre_load:
+                # 预加载neighbor pcds
+                for i_lat in self.latent_dict.keys():
+                    neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent(i_lat)
+                    self.neighbor_pcd_dict[i_lat] = neighbor_pcds
 
     def load_latent_preloaded(self, latent_path):
         if self.pre_load and latent_path in self.latent_dict.keys():
@@ -282,9 +338,64 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
         return pcd_sdfcoord.astype(np.float32)
 
+    def load_corresponding_pcd_of_scene_id(self, scene_name, ins_id):
+        # scene_name, ins_id, obj_id = self.get_info_from_latent_name(l_name=latent_name)
+        json_path = os.path.join(self.json_file_root,scene_name+".json")
+        if not os.path.isfile(json_path):
+            import pdb
+            pdb.set_trace()
+            raise RuntimeError
+        else:
+            with open(json_path,'r') as f: # '/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/output/default_experiment_3_class/test_set.json'
+                raw = json.load(f)
+                instances_dict = raw[scene_name]['instances']
+                instance_info = instances_dict[ins_id]
+
+                scale_sdf2mesh = np.array(instance_info["scale_sdf2mesh"])  # 1,
+                translation_sdf2mesh = np.array(instance_info["translation_sdf2mesh"])  # 3,
+                gt_translation_c2w = np.array(instance_info["gt_translation_c2w"])  # 3,
+                gt_rotation_mat_c2w = quaternion_list2rotmat(instance_info["gt_rotation_quat_wxyz_c2w"])
+
+                # print(instance_info.keys())
+                pcd_file = instance_info.get('segmented_cloud', None)
+                if not pcd_file:
+                    print(scene_name)
+                    print(ins_id)
+                    print(instance_info)
+                    import pdb; pdb.set_trace()
+                pcd_path = os.path.join(self.pcd_path_root, pcd_file)
+                if not os.path.isfile(pcd_path):
+                    print(instance_info)
+                    import pdb; pdb.set_trace()
+                pcd_world = load_pcd_raw(pcd_path)
+
+                pcd_world = farthest_point_sample(pcd_world, npoint=self.pc_size)
+
+                pcd_meshcoord = (
+                            np.linalg.inv(gt_rotation_mat_c2w) @ (pcd_world - gt_translation_c2w[np.newaxis, :]).T).T
+                pcd_sdfcoord = (pcd_meshcoord - translation_sdf2mesh[np.newaxis, :]) / scale_sdf2mesh
+
+        return pcd_sdfcoord.astype(np.float32)
+
     def load_corresponding_pcd_of_latent_preloaded(self,latent_name):
         if self.pre_load and latent_name in self.pcd_dict.keys():
             return self.pcd_dict[latent_name]
+        else:
+            raise RuntimeError
+
+    def load_corresponding_neighbor_pcd_of_latent(self, i_name):
+        "return a list of neighbor pcds"
+        scene_name, ins_id, obj_id = self.get_info_from_latent_name(i_name)
+        neighbor_info = self.neighbor_info_df.loc[(scene_name, ins_id)]
+        neighbor_pcds = []
+        for ng in neighbor_info['neighbour_ids']:
+            neighbor_pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ins_id)
+            neighbor_pcds.append(neighbor_pcd)
+        return neighbor_pcds
+
+    def load_corresponding_neighbor_pcd_of_latent_preloaded(self, i_name):
+        if self.pre_load and i_name in self.neighbor_pcd_dict.keys():
+            return self.neighbor_pcd_dict[i_name]
         else:
             raise RuntimeError
 
@@ -338,6 +449,14 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
                 pc = self.load_corresponding_pcd_of_latent_preloaded(latent_name)
             else:
                 pc = self.load_corresponding_pcd_of_latent(latent_name)
+            ans_dict['point_cloud'] = pc
+
+        if self.use_neighbor:
+            if self.pre_load:
+                neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent(latent_name)
+            else:
+                neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent_pretrained(latent_name)
+            ans_dict['neighbor_pcds'] = neighbor_pcds
 
         return ans_dict
 
@@ -378,10 +497,15 @@ if __name__ == "__main__":
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
                                sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
-                               pc_size=1024,
+                               pc_size=6000,
+                               length=10, # debug length
+                               times=1,
+                               pre_load=True,
+                               conditional=True,
+                               include_category=False,
+                               use_neighbor=True,
                                 use_sdf=True,
-                                pre_load=True,
-                                # length=10
+                               preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/experiment_1_class_alter_NptcUsdf_repro"
                                )
     l = len(dataset)
     for i in range(10):
