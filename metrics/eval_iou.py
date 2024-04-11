@@ -54,6 +54,38 @@ def compute_iou(mesh1, mesh2, sample_count=100000):
     iou = intersection_volume / union_volume
     return iou
 
+def trimesh_to_plotly_mesh3d(mesh):
+    """
+    将 trimesh.Trimesh 对象转换为 plotly.graph_objs.Mesh3d 对象。
+
+    参数:
+    - mesh: trimesh.Trimesh 对象
+
+    返回:
+    - plotly.graph_objs.Mesh3d 对象
+    """
+    # 提取顶点坐标
+    vertices = mesh.vertices
+    x, y, z = vertices[:, 0], vertices[:, 1], vertices[:, 2]
+    
+    # 提取面信息
+    faces = mesh.faces
+    i, j, k = faces[:, 0], faces[:, 1], faces[:, 2]
+    
+    # 创建 Plotly Mesh3d 对象
+    plotly_mesh = go.Mesh3d(
+        x=x,  # 顶点的 x 坐标
+        y=y,  # 顶点的 y 坐标
+        z=z,  # 顶点的 z 坐标
+        i=i,  # 面的第一个顶点索引
+        j=j,  # 面的第二个顶点索引
+        k=k,  # 面的第三个顶点索引
+        opacity=0.5,
+        color='blue'
+    )
+    
+    return plotly_mesh
+
 def plotly_mesh3d_to_trimesh(plotly_mesh3d):
     """
     将Plotly Mesh3d对象转换为trimesh.Trimesh对象。
