@@ -43,7 +43,7 @@ def train():
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
                                sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
-                               split_file=specs.get(["TrainSplit"],None),
+                               split_file=specs.get("TrainSplit",None),
                                pc_size=specs['diffusion_specs'].get('sample_pc_size', 128),
                                length=specs.get('dataset_length', -1),
                                times=specs.get('times', 1),
@@ -114,7 +114,8 @@ if __name__ == "__main__":
         # default="config/stage2_diff_cond_scanarcw",
         # default="config/stage2_diff_uncond2_l1",
         # default="config/ddit_stage2_diff_cond",
-        default="config/ddit_stage2_diff_cond",
+        # default="config/ddit_stage2_diff_cond",
+        default="config/ddit_stage2_diff_cond_sofa_train",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
