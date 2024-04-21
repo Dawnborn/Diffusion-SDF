@@ -39,11 +39,10 @@ random.seed(seed)
 
 def train():
 
-    dataset_train = MyScanARCWDataset(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw_origprep_all_mypretrainedb24_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/04256520",
+    dataset_train = MyScanARCWDataset(latent_path_root="/storage/user/huju/transferred/ws_dditnach/DeepImplicitTemplates/examples/chairs_dit_manifoldplus_scanarcw_origprep_all_mypretrained_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/03001627",
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
-                               sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
-                            #    split_file=specs.get("TrainSplit",None),
+                               sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/03001627",
                                pc_size=specs['diffusion_specs'].get('sample_pc_size', 128),
                                length=specs.get('dataset_length', -1),
                                times=specs.get('times', 1),
@@ -51,9 +50,7 @@ def train():
                                conditional=specs["diffusion_model_specs"].get("cond", True),
                                include_category=False,
                                use_neighbor=specs.get('use_neighbor', False),
-                            #    preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/experiment_1_class_alter_NptcUsdf_repro"
-                               preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/afterfix_exp_1cl_standard_lr_scheduler_newpretraineddithjpdataorig_diff_l1",
-                               mode="train"
+                               preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/experiment_1_class_alter_NptcUsdf_repro"
                                )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -117,7 +114,7 @@ if __name__ == "__main__":
         # default="config/stage2_diff_uncond2_l1",
         # default="config/ddit_stage2_diff_cond",
         # default="config/ddit_stage2_diff_cond",
-        default="config/ddit_stage2_diff_cond_sofa_train",
+        default="config/ddit_stage2_diff_cond_chair",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
@@ -135,7 +132,7 @@ if __name__ == "__main__":
         help="end to end supervision",
     )
 
-    arg_parser.add_argument("--batch_size", "-b", default=10, type=int)
+    arg_parser.add_argument("--batch_size", "-b", default=5, type=int)
     arg_parser.add_argument("--workers", "-w", default=12, type=int)
     # arg_parser.add_argument("--pre_load", "-p", default=False, type=bool)
     arg_parser.add_argument("--pre_load", "-p", action='store_true')

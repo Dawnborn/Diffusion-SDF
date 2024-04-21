@@ -44,6 +44,7 @@ if __name__ == "__main__":
                         # default="config/stage2_diff_cond_scanarcw_l1_10times42_nonperturb_b35",
                         # default="config/stage2_diff_cond_scanarcw_l1_1e-4_nonperturb_b70",
                         # default="config/stage2_diff_cond_scanarcw_4times420_b280",
+                        # default="config/ddit_stage2_diff_cond",
                         help='Path to the configuration directory.')
 
     parser.add_argument('--ckpt', type=str,
@@ -56,7 +57,9 @@ if __name__ == "__main__":
                         # default="26999",
                         # default="27999",
                         # default="30999",
-                        default="33999",
+                        # default="68999",
+                        # default="23999",
+                        default="69999",
                         help='Checkpoint number or "last".')
 
     parser.add_argument('--nocond',
@@ -111,6 +114,7 @@ if __name__ == "__main__":
         os.makedirs(output_path)
     
     num_samples = 100
+    num_samples = None
 
     specs = json.load(open(sepcs_path))
     print(specs["Description"])
@@ -147,8 +151,9 @@ if __name__ == "__main__":
 
 
     for idx,data in tqdm(enumerate(train_dataloader)):
-        if idx >= num_samples:
-            break
+        if num_samples:
+            if idx >= num_samples:
+                break
         pcd = data['point_cloud']
         latent_gt = data['latent']
         latent_gt_path = data['latent_path'][0]

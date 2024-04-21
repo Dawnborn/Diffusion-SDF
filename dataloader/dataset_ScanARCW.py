@@ -105,8 +105,10 @@ def remove_nan(tmp):
     return tmp[~mask]
 
 class MyScanARCWDataset(torch.utils.data.Dataset):
-    def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000, conditional=True, use_sdf=False, length=-1, times=1, pre_load=False, include_category=False, preprocess=None, use_neighbor=False):
+    def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000, conditional=True, use_sdf=False, length=-1, times=1, pre_load=False, include_category=False, preprocess=None, use_neighbor=False, mode="train",specs=None):
         super().__init__()
+
+        self.specs = specs
 
         self.latent_path_root = latent_path_root  # /canonical_mesh_manifoldplus/04256520
         self.pcd_path_root = pcd_path_root  # DATA/ScanARCW/segmented_pcd
@@ -115,6 +117,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         
         self.split_file = split_file
         self.preprocess = preprocess
+        self.mode = mode
 
         self.pc_size = pc_size
         self.sdf_size = sdf_size
@@ -165,19 +168,23 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         :return:
         """
         tmp_latent_paths = sorted(os.listdir(self.latent_path_root))
+        print("======in all {}".format(len(tmp_latent_paths)))
 
         # if split_file, only support single category!
-        if self.split_file:
-            with open(self.split_file, 'r') as file:
+        if self.preprocess:
+            # 有错误，有些场景里的latent没有用到在train_set里
+            train_split = os.path.join(self.preprocess, "scene_split.json")
+            with open(train_split, 'r') as file:
                 data = json.load(file)
-            for ds_name in data.keys():
-                dict_labels = data[ds_name]
-                for label in dict_labels.keys():
-                    list_ins = dict_labels[label]
-            
-            print("all tmp_latent_paths:{}".format(len(tmp_latent_paths)))
-            tmp_latent_paths = [tmp_latent_path for tmp_latent_path in tmp_latent_paths if tmp_latent_path.split(".")[0] in list_ins]
-        print("now using for training:{}".format(len(tmp_latent_paths)))
+            data[self.mode]
+            new_tmp_latent_paths = []
+            for latent in tmp_latent_paths:
+                scene, ins_id, obj_id = self.get_info_from_latent_name(latent)
+                if scene in data[self.mode]:
+                    new_tmp_latent_paths.append(latent)
+                       
+            tmp_latent_paths = new_tmp_latent_paths
+            print("=====using {} for {}".format(len(tmp_latent_paths), self.mode))
 
         current_length = 0
         if self.length == -1:
@@ -206,12 +213,12 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
         if self.use_neighbor:
             print("=========start indexing neighbor pcds!")
-            json_file_path = os.path.join(self.preprocess,"preprocess.json")
+            json_file_path = os.path.join(self.preprocess,"{}_set.json".format(self.mode))
             with open(json_file_path, "r") as f:
-                data = json.load(f)
+                data = json.load(f)["data"]
             rows = []
             # 遍历JSON中的每个对象
-            for item in data:
+            for item in tqdm(data):
                 scene_name = item['scene_name']
                 obj_id = item['id']
                 category = item['category']
@@ -381,23 +388,41 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         if self.pre_load and latent_name in self.pcd_dict.keys():
             return self.pcd_dict[latent_name]
         else:
+            print("latent {} not pre_loaded!!!".format(latent_name))
+            import pdb; pdb.set_trace()
             raise RuntimeError
 
     def load_corresponding_neighbor_pcd_of_latent(self, i_name):
-        "return a list of neighbor pcds"
+        """
+        return neighbor pcds of shape [num_neighbors, num_points, 3], padding with self point cloud if not enough neighbors
+        """
         scene_name, ins_id, obj_id = self.get_info_from_latent_name(i_name)
+
         neighbor_info = self.neighbor_info_df.loc[(scene_name, ins_id)]
         neighbor_pcds = []
-        for ng in neighbor_info['neighbour_ids']:
-            neighbor_pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ins_id)
+
+        for id, ng in enumerate(neighbor_info['neighbour_ids']):
+            if id>=self.specs["max_neighbor"]:
+                break
+            neighbor_pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ng)
             neighbor_pcds.append(neighbor_pcd)
+
+        inner_pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ins_id)
+        while(len(neighbor_pcds)<self.specs["max_neighbor"]):
+            neighbor_pcds.append(inner_pcd)
+
+        assert(len(neighbor_pcds)==self.specs["max_neighbor"])
+
+        neighbor_pcds = np.stack(neighbor_pcds,axis=0)
         return neighbor_pcds
 
     def load_corresponding_neighbor_pcd_of_latent_preloaded(self, i_name):
         if self.pre_load and i_name in self.neighbor_pcd_dict.keys():
             return self.neighbor_pcd_dict[i_name]
         else:
-            raise RuntimeError
+            print("neighbor pcds of latent {} not pre_loaded!!!".format(i_name))
+            import pdb; pdb.set_trace()
+            # raise RuntimeError
 
     def get_corresponding_sdf_path_of_latent(self,latent_name):
         sdf_name = latent_name.split(".")[0] + ".npz"
@@ -452,10 +477,10 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             ans_dict['point_cloud'] = pc
 
         if self.use_neighbor:
-            if self.pre_load:
+            if not self.pre_load:
                 neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent(latent_name)
             else:
-                neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent_pretrained(latent_name)
+                neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent_preloaded(latent_name)
             ans_dict['neighbor_pcds'] = neighbor_pcds
 
         return ans_dict
