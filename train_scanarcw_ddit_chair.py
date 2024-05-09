@@ -42,11 +42,11 @@ def train():
     dataset_train = MyScanARCWDataset(latent_path_root="/storage/user/huju/transferred/ws_dditnach/DeepImplicitTemplates/examples/chairs_dit_manifoldplus_scanarcw_origprep_all_mypretrained_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/03001627",
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
-                               sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/03001627",
+                               sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/{}".format(specs["ddit_specs"]["wanted_category"][0]),
                             #    split_file=specs.get("TrainSplit",None),
                                pc_size=specs['diffusion_specs'].get('sample_pc_size', 128),
                                length=specs.get('dataset_length', -1),
-                            #    length=10,
+                               # length=60,
                                times=specs.get('times', 1),
                                pre_load=args.pre_load,
                                conditional=specs["diffusion_model_specs"].get("cond", True),
@@ -55,9 +55,9 @@ def train():
                             #    preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/afterfix_exp_1cl_standard_lr_scheduler_newpretraineddithjpdataorig_diff_l1",
                                preprocess=specs.get("preprocess", None),
                                sdf_size=specs.get("sdf_samples",20000),
-                               use_sdf=True,
                                mode="train",
-                               specs=specs
+                               specs=specs,
+                                use_sdf=True,
                                )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -86,7 +86,7 @@ def train():
             print("ckpt not found!!!")
             resume=None
 
-    trainer = pl.Trainer(accelerator='gpu', devices=-1, precision=32, max_epochs=specs["num_epochs"], callbacks=callbacks, log_every_n_steps=1,
+    trainer = pl.Trainer(accelerator='gpu', devices=-1, logger=True, precision=32, max_epochs=specs["num_epochs"], callbacks=callbacks, log_every_n_steps=1,
                         default_root_dir=os.path.join("tensorboard_logs", args.exp_dir))
     trainer.fit(model=model, train_dataloaders=train_dataloader, ckpt_path=resume)
 
@@ -98,13 +98,40 @@ if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(
         "--exp_dir", "-e", 
-        # default="config/ddit_stage2_diff_cond_chair_train_neighbor",
-        default="config/ddit_stage2_diff_cond_chair_train_noneighbor",
+        # required=True,
+        # default = "config/stage2_diff_uncond_debug",
+        # default = "config/stage2_diff_cond_debug",
+        # default = "config/stage2_diff_uncond_debug",
+        # default="config/stage1dit_sdf_grid",
+        # default="config/stage2_diff_uncond2_l1",
+        # default="config/repro_stage1_sdf",
+        # default="config/repro_stage2_diff_cond",
+        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw",
+        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw2",
+        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw10",
+        # default="config/stage2_diff_cond_scanarcw_l1_pc1024",
+        # default="config/stage2_diff_cond_scanarcw_l1_pc1024_10times42",
+        # default="config/stage2_diff_cond_scanarcw_sinl1_pc1024_10times42",
+        # default="config/stage2_diff_cond_scanarcw_sinl1_pc1024_10times42_nonperturb",
+        # default="/storage/user/lhao/hjp/ws_dditnach/Diffusion-SDF/config/stage3_cond",
+        # default="config/stage2_diff_cond_scanarcw_l1_1e-4_b70",
+        # default="config/stage2_diff_cond_scanarcw_l1_1e-4_nonperturb_b70",
+        # default="config/stage2_diff_cond_scanarcw_4times420_b280",
+        # default="config/stage2_diff_cond_scanarcw",
+        # default="config/stage2_diff_uncond2_l1",
+        # default="config/ddit_stage2_diff_cond",
+        # default="config/ddit_stage2_diff_cond",
+        # default="config/ddit_stage2_diff_cond_sofa_train",
+        # default="config/ddit_stage2_diff_cond_sofa_train_neighbor",
+        # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
+        # default="config/ddit_stage2_sofa",
+        default="config/ddit_stage2_chair",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
         "--resume", "-r", 
         default="last",
+        # default=None,
         # default="29999",
         # default="26999",
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",
@@ -112,13 +139,13 @@ if __name__ == "__main__":
 
     arg_parser.add_argument(
         "--end2end", 
-        # default="last",
-        default=False,
+        default="last",
+        # default=False,
         help="end to end supervision",
     )
 
-    arg_parser.add_argument("--batch_size", "-b", default=10, type=int)
-    arg_parser.add_argument("--workers", "-w", default=12, type=int)
+    arg_parser.add_argument("--batch_size", "-b", default=2, type=int)
+    arg_parser.add_argument("--workers", "-w", default=6, type=int)
     arg_parser.add_argument("--pre_load", "-p", default=False, type=bool)
     # arg_parser.add_argument("--pre_load", "-p", action='store_true')
 

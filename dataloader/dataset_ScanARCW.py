@@ -104,6 +104,20 @@ def remove_nan(tmp):
     mask = np.isnan(tmp[:,3])
     return tmp[~mask]
 
+num2cat = {
+    "02808440": "bathtub",
+    "02818832": "bed",
+    "02871439": "bookshelf",
+    "02933112": "cabinet",
+    "03001627": "chair",
+    "04256520": "sofa",
+    "04379243": "table"
+}
+
+cat2num = dict()
+for key in num2cat.keys():
+    cat2num[num2cat[key]] = key
+
 class MyScanARCWDataset(torch.utils.data.Dataset):
     def __init__(self,latent_path_root, pcd_path_root, json_file_root, sdf_file_root, split_file=None, pc_size=1024, sdf_size=20000, conditional=True, use_sdf=False, length=-1, times=1, pre_load=False, include_category=False, preprocess=None, use_neighbor=False, mode="train",specs=None):
         super().__init__()
@@ -172,17 +186,50 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
         # if split_file, only support single category!
         if self.preprocess:
-            # 有错误，有些场景里的latent没有用到在train_set里
-            train_split = os.path.join(self.preprocess, "scene_split.json")
-            with open(train_split, 'r') as file:
-                data = json.load(file)
-            data[self.mode]
+            print("=========start indexing latents from preprocessing!")
+
+            # # 有错误，有些场景里的latent没有用到在train_set里
+            # train_split = os.path.join(self.preprocess, "scene_split.json")
+            # with open(train_split, 'r') as file:
+            #     data = json.load(file)
+            # data[self.mode]
+            # new_tmp_latent_paths = []
+            # for latent in tmp_latent_paths:
+            #     scene, ins_id, obj_id = self.get_info_from_latent_name(latent)
+            #     if scene in data[self.mode]:
+            #         new_tmp_latent_paths.append(latent)
+            # tmp_latent_paths = new_tmp_latent_paths
+
+            json_file_path = os.path.join(self.preprocess,"{}_set.json".format(self.mode))
+            with open(json_file_path, "r") as f:
+                data = json.load(f)
+            rows = []
+            # 遍历JSON中的每个对象
+            for cat in data["data"]:
+                for item in tqdm(data["data"][cat]):
+                    scene_name = item['scene_name']
+                    obj_id = item['id']
+                    category = item['category']
+                    neighbour_ids = item['neighbour_id']
+                    neighbour_ious = item['neighbour_iou']
+                    row = {
+                        'scene_name': scene_name,
+                        'id': obj_id,
+                        'category': category,
+                        'neighbour_ids': neighbour_ids,
+                        'neighbour_ious': neighbour_ious,
+                    }
+                    rows.append(row)
+            # 使用rows列表创建DataFrame
+            df = pd.DataFrame(rows)
+            df.set_index(['scene_name', 'id'], inplace=True)
+            self.neighbor_info_df = df
+            
             new_tmp_latent_paths = []
             for latent in tmp_latent_paths:
-                scene, ins_id, obj_id = self.get_info_from_latent_name(latent)
-                if scene in data[self.mode]:
+                scene_name, ins_id, obj_id = self.get_info_from_latent_name(l_name=latent)
+                if (scene_name, ins_id) in self.neighbor_info_df.index:
                     new_tmp_latent_paths.append(latent)
-                       
             tmp_latent_paths = new_tmp_latent_paths
             print("=====using {} for {}".format(len(tmp_latent_paths), self.mode))
 
@@ -190,7 +237,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         if self.length == -1:
             self.length = len(tmp_latent_paths)
 
-        print("initializing latent_paths and checking corresponding segmented pcd...")
+        print("checking corresponding segmented pcd...")
         for i_name in tqdm(tmp_latent_paths):
             if not i_name.split(".")[-1] in self.allowed_suffix:
                 continue
@@ -208,40 +255,16 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             if current_length >= self.length:
                 break
 
-        self.latent_paths = self.latent_paths*self.times
-        print("=========latent indexing finished!")
-
         if self.use_neighbor:
-            print("=========start indexing neighbor pcds!")
-            json_file_path = os.path.join(self.preprocess,"{}_set.json".format(self.mode))
-            with open(json_file_path, "r") as f:
-                data = json.load(f)["data"]
-            rows = []
-            # 遍历JSON中的每个对象
-            for item in tqdm(data):
-                scene_name = item['scene_name']
-                obj_id = item['id']
-                category = item['category']
-                neighbour_ids = item['neighbour_id']
-                neighbour_ious = item['neighbour_iou']
-                row = {
-                    'scene_name': scene_name,
-                    'id': obj_id,
-                    'category': category,
-                    'neighbour_ids': neighbour_ids,
-                    'neighbour_ious': neighbour_ious
-                }
-                rows.append(row)
-            # 使用rows列表创建DataFrame
-            df = pd.DataFrame(rows)
-            df.set_index(['scene_name', 'id'], inplace=True)
-            self.neighbor_info_df = df
-            
             if self.pre_load:
                 # 预加载neighbor pcds
-                for i_lat in self.latent_dict.keys():
+                print("preloading neighbor pcds...")
+                for i_lat in tqdm(self.latent_dict.keys()):
                     neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent(i_lat)
                     self.neighbor_pcd_dict[i_lat] = neighbor_pcds
+        
+        self.latent_paths = self.latent_paths*self.times
+        print("=========latent indexing finished!")
 
     def load_latent_preloaded(self, latent_path):
         if self.pre_load and latent_path in self.latent_dict.keys():
@@ -384,6 +407,10 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
 
         return pcd_sdfcoord.astype(np.float32)
 
+    def load_corresponding_pcd_of_scene_id_preloaded(self,scene_name,ins_id):
+        return self.pcd_dict
+
+
     def load_corresponding_pcd_of_latent_preloaded(self,latent_name):
         if self.pre_load and latent_name in self.pcd_dict.keys():
             return self.pcd_dict[latent_name]
@@ -416,13 +443,17 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         neighbor_pcds = np.stack(neighbor_pcds,axis=0)
         return neighbor_pcds
 
-    def load_corresponding_neighbor_pcd_of_latent_preloaded(self, i_name):
-        if self.pre_load and i_name in self.neighbor_pcd_dict.keys():
-            return self.neighbor_pcd_dict[i_name]
+    def load_corresponding_neighbor_pcd_of_latent_preloaded(self, latent_path):
+        "i_path: full path of latent"
+        if self.pre_load and latent_path in self.neighbor_pcd_dict.keys():
+            return self.neighbor_pcd_dict[latent_path]
         else:
-            print("neighbor pcds of latent {} not pre_loaded!!!".format(i_name))
-            import pdb; pdb.set_trace()
-            # raise RuntimeError
+            print("neighbor pcds of latent {} not pre_loaded!!!".format(latent_path))
+            print("caching neighbor pcds of latent {}!!!".format(latent_path))
+            # neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent(latent_path)
+            # self.neighbor_pcd_dict[latent_path] = neighbor_pcds
+            # return neighbor_pcds
+            raise RuntimeError
 
     def get_corresponding_sdf_path_of_latent(self,latent_name):
         sdf_name = latent_name.split(".")[0] + ".npz"
@@ -480,7 +511,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             if not self.pre_load:
                 neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent(latent_name)
             else:
-                neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent_preloaded(latent_name)
+                neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent_preloaded(latent_path)
             ans_dict['neighbor_pcds'] = neighbor_pcds
 
         return ans_dict

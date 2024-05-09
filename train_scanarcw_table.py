@@ -39,10 +39,10 @@ random.seed(seed)
 
 def train():
 
-    dataset_train = MyScanARCWDataset(latent_path_root="/storage/user/huju/transferred/ws_dditnach/DeepImplicitTemplates/examples/chairs_dit_manifoldplus_scanarcw_origprep_all_mypretrained_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/03001627",
+    dataset_train = MyScanARCWDataset(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/tables_dit_manifoldplus_scanarcw_origprep_all_pretrainedsofas/LatentCodes/train/2000/canonical_mesh_manifoldplus/04379243",
                                pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
                                json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
-                               sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/03001627",
+                               sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04379243",
                             #    split_file=specs.get("TrainSplit",None),
                                pc_size=specs['diffusion_specs'].get('sample_pc_size', 128),
                                length=specs.get('dataset_length', -1),
@@ -55,7 +55,7 @@ def train():
                             #    preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/afterfix_exp_1cl_standard_lr_scheduler_newpretraineddithjpdataorig_diff_l1",
                                preprocess=specs.get("preprocess", None),
                                sdf_size=specs.get("sdf_samples",20000),
-                               use_sdf=True,
+                               use_sdf=False,
                                mode="train",
                                specs=specs
                                )
@@ -99,7 +99,9 @@ if __name__ == "__main__":
     arg_parser.add_argument(
         "--exp_dir", "-e", 
         # default="config/ddit_stage2_diff_cond_chair_train_neighbor",
-        default="config/ddit_stage2_diff_cond_chair_train_noneighbor",
+        # default="config/ddit_stage2_diff_cond_chair_train_noneighbor",
+        # default="config/ddit_stage2_diff_cond_table_train_neighbor",
+        default="config/ddit_stage2_diff_cond_table_train_noneighbor",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
@@ -117,9 +119,9 @@ if __name__ == "__main__":
         help="end to end supervision",
     )
 
-    arg_parser.add_argument("--batch_size", "-b", default=10, type=int)
+    arg_parser.add_argument("--batch_size", "-b", default=12, type=int)
     arg_parser.add_argument("--workers", "-w", default=12, type=int)
-    arg_parser.add_argument("--pre_load", "-p", default=False, type=bool)
+    arg_parser.add_argument("--pre_load", "-p", default=True, type=bool)
     # arg_parser.add_argument("--pre_load", "-p", action='store_true')
 
     args = arg_parser.parse_args()
