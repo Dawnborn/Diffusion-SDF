@@ -452,6 +452,7 @@ class PCTransformerLocal(nn.Module):
             nn.LeakyReLU(negative_slope=0.2),
             nn.Linear(512, 256)
         )
+        
         self.classify = nn.Sequential(
             nn.Linear(1024, 256),
             nn.LeakyReLU(negative_slope=0.2),
@@ -517,11 +518,12 @@ class PCTransformerLocal(nn.Module):
 
         local_feature = self.increase_dim(x.transpose(1, 2))  # 384 128 -> B 256 group128 # Todo 改成256 或者 加一层
 
+        global_feature = torch.max(local_feature, dim=-1)[0]  # B 256
+        global_feature = self.relu(global_feature)
+        # global_feature_out = self.Mlp_latentcode(global_feature)  # B 256
+
         categ_prediction = None
         if self.category_pred:
-            global_feature = torch.max(local_feature, dim=-1)[0]  # B 1024
-            global_feature = self.relu(global_feature)
-            # global_feature_out = self.Mlp_latentcode(global_feature)  # B 256
             categ_prediction = self.classify(global_feature)
 
-        return local_feature, categ_prediction
+        return local_feature, categ_prediction, global_feature

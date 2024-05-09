@@ -40,11 +40,13 @@ if __name__ == "__main__":
                         # default="config/stage2_diff_cond_scanarcw_sinl1_pc1024_10times42_nonperturb",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw",
                         # default="config/stage2_diff_cond_scanarcw_sinl1",
-                        default="config/stage2_diff_cond_scanarcw",
+                        # default="config/stage2_diff_cond_scanarcw",
                         # default="config/stage2_diff_cond_scanarcw_l1_10times42_nonperturb_b35",
                         # default="config/stage2_diff_cond_scanarcw_l1_1e-4_nonperturb_b70",
                         # default="config/stage2_diff_cond_scanarcw_4times420_b280",
                         # default="config/ddit_stage2_diff_cond",
+                        # default="config/ddit_stage2_diff_cond_sofa_train_neighbor",
+                        default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
                         help='Path to the configuration directory.')
 
     parser.add_argument('--ckpt', type=str,
@@ -60,11 +62,19 @@ if __name__ == "__main__":
                         # default="68999",
                         # default="23999",
                         default="69999",
+                        # default="49999",
                         help='Checkpoint number or "last".')
 
     parser.add_argument('--nocond',
                         default=False,
                         help='Flag to specify no condition mode.')
+
+    parser.add_argument("--mode", default="train")
+
+    parser.add_argument("--create_mesh", action='store_true')
+
+    parser.add_argument("--max_batch", default=2**17)
+    
 
     # 解析命令行参数
     args = parser.parse_args()
@@ -106,9 +116,9 @@ if __name__ == "__main__":
     # output_path = "/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw3/output/24999"
     # output_path = "/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw7/output/499"
     if nocond:
-        output_path = os.path.join(config_path, "output", ckpt, "nocond")
+        output_path = os.path.join(config_path, "output", ckpt, "nocond", args.mode, "lat")
     else:
-        output_path = os.path.join(config_path, "output", ckpt)
+        output_path = os.path.join(config_path, "output", ckpt, args.mode, "lat")
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -132,25 +142,45 @@ if __name__ == "__main__":
 
     model = model.cuda().eval()
 
-    dataset_train = MyScanARCWDataset(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw_origprep_all_mypretrainedb24_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/04256520",
-                               pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
-                               json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
-                               sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
-                               pc_size=specs['diffusion_specs']['sample_pc_size'],
-                               length=specs.get('dataset_length', -1),
-                               pre_load=True,
-                               use_sdf=False
-                               )
-    train_dataloader = torch.utils.data.DataLoader(
-        dataset_train,
+    # dataset_train = MyScanARCWDataset(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw_origprep_all_mypretrainedb24_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/04256520",
+    #                            pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
+    #                            json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
+    #                            sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
+    #                            pc_size=specs['diffusion_specs']['sample_pc_size'],
+    #                            length=specs.get('dataset_length', -1),
+    #                            pre_load=True,
+    #                            use_sdf=False
+    #                            )
+    
+    dataset_test = MyScanARCWDataset(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw_origprep_all_mypretrainedb24_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/04256520",
+                            pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
+                            json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
+                            sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
+                        #    split_file=specs.get("TrainSplit",None),
+                            pc_size=specs['diffusion_specs'].get('sample_pc_size', 128),
+                            length=specs.get('dataset_length', -1),
+                        #    length=10,
+                            times=specs.get('times', 1),
+                            pre_load=False,
+                            conditional=specs["diffusion_model_specs"].get("cond", True),
+                            include_category=False,
+                            use_neighbor=specs.get('use_neighbor', False),
+                        #    preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/afterfix_exp_1cl_standard_lr_scheduler_newpretraineddithjpdataorig_diff_l1",
+                            preprocess=specs.get("preprocess", None),
+                            mode=args.mode,
+                            specs=specs
+                            )
+
+    test_dataloader = torch.utils.data.DataLoader(
+        dataset_test,
         batch_size=1, num_workers=0
     )
 
-    dataset_train.save_latent_paths(os.path.join(config_path, "train_list.txt"))
+    dataset_test.save_latent_paths(os.path.join(config_path, "test_list.txt"))
     # import pdb; pdb.set_trace()
 
 
-    for idx,data in tqdm(enumerate(train_dataloader)):
+    for idx,data in tqdm(enumerate(test_dataloader)):
         if num_samples:
             if idx >= num_samples:
                 break
@@ -189,3 +219,16 @@ if __name__ == "__main__":
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(perturbed_pc.cpu().numpy().squeeze())
         o3d.io.write_point_cloud(ptc_save_path, pcd)
+
+        # if args.create_mesh:
+            
+        #     mesh_path = None
+
+        #     decoder = None
+
+        #     clamping_function = lambda x : torch.clamp(x, -0.1, 0.1)
+        #     deep_sdf.mesh.create_mesh_octree(
+        #         decoder_dict[_categ_current], lat_vec, mesh_path, N=256, max_batch=args.max_batch,
+        #         clamp_func=clamping_function
+        #     )
+        #     print("mesh saved to {}".format(mesh_path))

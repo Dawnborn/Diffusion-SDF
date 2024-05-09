@@ -137,6 +137,8 @@ pip install pytorch-lightning==1.6.4
 pip install einops==0.6.0 einops_exts
 
 pip install trimesh
+
+pip install scikit-image
 ```
 
 install `pytorch_scatter`
@@ -170,3 +172,21 @@ pip install open3d
 pip install rotary-embedding-torch==0.2.1
 ```
 
+install DDIT model
+
+pointnet_op2
+```
+pip install numpy msgpack-numpy lmdb h5py 
+
+# pip install hydra-core==0.11.3 # 会导致pl受损，尝试新本版hyd
+
+pip install hydra-core
+
+cd /storage/user/huju/transferred/ws_dditnach/DDIT_thirdparty/Pointnet2_PyTorch/pointnet2_ops_lib
+python setup.py install
+
+cd /storage/user/huju/transferred/ws_dditnach/DDIT_thirdparty/Pointnet2_PyTorch/
+python setup.py install
+
+pip install timm
+```

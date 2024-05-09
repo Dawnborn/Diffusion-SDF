@@ -176,6 +176,13 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         obj_id = latent_name.split("_")[0]
         return scene, ins_id, obj_id
 
+    def pcd_dict_interst(self, scene_name,ins_id, obj):
+        if scene_name in self.pcd_dict.keys():
+            self.pcd_dict[scene_name][ins_id] = obj
+        else:
+            self.pcd_dict[scene_name] = dict()
+            self.pcd_dict[scene_name][ins_id] = obj
+
     def get_latent_and_pc_paths(self):
         """
                 initialization of the class
@@ -247,10 +254,12 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             i_latent_path = os.path.join(self.latent_path_root, i_name)
             self.latent_paths.append(i_latent_path)
 
+            scene_name, ins_id, obj_id = self.get_info_from_latent_name(l_name=latent)
             if self.pre_load:
                 self.latent_dict[i_latent_path] = self.load_latent(i_latent_path)
                 if self.conditional:
                     self.pcd_dict[i_name.split(".")[0]] = self.load_corresponding_pcd_of_latent(i_name)
+                    # pcd = self.load_corresponding_pcd_of_scene_id_preloaded(scene_name, ins_id)
             current_length += 1
             if current_length >= self.length:
                 break
@@ -262,6 +271,8 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
                 for i_lat in tqdm(self.latent_dict.keys()):
                     neighbor_pcds = self.load_corresponding_neighbor_pcd_of_latent(i_lat)
                     self.neighbor_pcd_dict[i_lat] = neighbor_pcds
+            else:
+                pass
         
         self.latent_paths = self.latent_paths*self.times
         print("=========latent indexing finished!")
@@ -275,9 +286,9 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
     def load_latent(self, latent_path):
         suffix = latent_path.split(".")[-1]
         if suffix == "txt":
-            latent = ( torch.from_numpy(np.loadtxt(latent_path)).float() )
+            latent = ( torch.from_numpy(np.loadtxt(latent_path)).float().cpu().numpy())
         elif suffix == "pth":
-            latent = (torch.load(latent_path))
+            latent = (torch.load(latent_path).cpu().numpy())
         else:
             import pdb
             pdb.set_trace()
@@ -408,7 +419,13 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         return pcd_sdfcoord.astype(np.float32)
 
     def load_corresponding_pcd_of_scene_id_preloaded(self,scene_name,ins_id):
-        return self.pcd_dict
+        try:
+            pcd = self.pcd_dict[scene_name][ins_id]
+        except:
+            print("caching scene {} ins {}".format(scene_name, ins_id))
+            pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ins_id)
+            self.pcd_dict_interst(scene_name, ins_id, pcd)
+        return pcd
 
 
     def load_corresponding_pcd_of_latent_preloaded(self,latent_name):
@@ -432,9 +449,17 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             if id>=self.specs["max_neighbor"]:
                 break
             neighbor_pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ng)
+            # if self.pre_load:
+            #     neighbor_pcd = self.load_corresponding_pcd_of_scene_id_preloaded(scene_name, ng)
+            # else:
+            #     neighbor_pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ng)
             neighbor_pcds.append(neighbor_pcd)
 
         inner_pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ins_id)
+        # if self.pre_load:
+        #     inner_pcd = self.load_corresponding_pcd_of_scene_id_preloaded(scene_name, ins_id)
+        # else:
+        #     inner_pcd = self.load_corresponding_pcd_of_scene_id(scene_name, ins_id)
         while(len(neighbor_pcds)<self.specs["max_neighbor"]):
             neighbor_pcds.append(inner_pcd)
 
@@ -482,6 +507,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
     def __getitem__(self,index):
         latent_path = self.latent_paths[index]
         latent_name = os.path.basename(latent_path).split(".")[0]
+        scene_name, ins_id, obj_id = self.get_info_from_latent_name(latent_path)
         ans_dict = {}
 
         if self.pre_load:
@@ -503,8 +529,10 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
         if self.conditional:
             if self.pre_load:
                 pc = self.load_corresponding_pcd_of_latent_preloaded(latent_name)
+                # pc = self.load_corresponding_pcd_of_scene_id_preloaded(scene_name, ins_id)
             else:
                 pc = self.load_corresponding_pcd_of_latent(latent_name)
+                # pc = self.load_corresponding_pcd_of_scene_id(scene_name, ins_id)
             ans_dict['point_cloud'] = pc
 
         if self.use_neighbor:

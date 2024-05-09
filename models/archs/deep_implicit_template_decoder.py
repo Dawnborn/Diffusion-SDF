@@ -10,16 +10,34 @@ import math
 import os
 import json
 
-class SdfDecoder(nn.Module):
+from collections import OrderedDict
+
+import torch.nn.utils as utils
+
+def remove_weight_norm(model):
+    for name, module in model.named_children():
+        if hasattr(module, 'weight_g'):
+            utils.remove_weight_norm(module)
+        remove_weight_norm(module)  # 递归处理子模块
+
+def calc_and_fix_weights(model):
+    for module in model.modules():
+        if hasattr(module, 'weight_v') and hasattr(module, 'weight_g'):
+            w = module.weight_g * module.weight_v / torch.norm(module.weight_v, dim=1, keepdim=True)
+            module.weight = torch.nn.Parameter(w)  # 转换成普通参数
+            del module._parameters['weight_g']  # 删除不再需要的属性
+            del module._parameters['weight_v']
+
+class SdfDecoderold(nn.Module):
     def __init__(
         self,
-        dims,
-        dropout=None,
-        dropout_prob=0.0,
-        norm_layers=(),
-        xyz_in_all=None,
-        use_tanh=False,
-        weight_norm=False,
+        dims, # [256, 256, 256, 256, 256]
+        dropout=None, # [0, 1, 2, 3, 4]
+        dropout_prob=0.0, # 0.05
+        norm_layers=(), # [0,1,2,3,4]
+        xyz_in_all=None, # False
+        use_tanh=False, # False
+        weight_norm=False, # True
     ):
         super(SdfDecoder, self).__init__()
         dims = [3] + dims + [1]
@@ -90,13 +108,238 @@ class SdfDecoder(nn.Module):
 
         return x
 
-def remove_module_prefix(state_dict):
+class SdfDecodernew(nn.Module):
+    def __init__(self, dims, dropout=None, dropout_prob=0.0, norm_layers=(), xyz_in_all=None, use_tanh=False, weight_norm=False):
+        super(SdfDecodernew, self).__init__()
+        self.layers = nn.ModuleDict()
+        self.norms = nn.ModuleDict()
+        self.use_tanh = use_tanh
+        self.xyz_in_all = xyz_in_all
+        self.relu = nn.ReLU()
+        
+        input_dim = 3  # Initial input dimension for xyz coordinates
+        dims = [input_dim] + dims + [1]  # Append output dimension
+
+        for i in range(len(dims) - 1):
+            out_dim = dims[i + 1]
+            if xyz_in_all and i != len(dims) - 2:
+                out_dim -= 3  # Adjust dimensions if xyz coordinates are included in all but the last layer
+
+            # Create linear layers with optional weight normalization
+            layer_name = f"lin{i}"
+            if weight_norm and i in norm_layers:
+                self.layers[layer_name] = nn.utils.weight_norm(nn.Linear(dims[i], out_dim))
+            else:
+                self.layers[layer_name] = nn.Linear(dims[i], out_dim)
+
+            # Add optional batch normalization layers
+            if i in norm_layers and not weight_norm:
+                self.norms[f"bn{i}"] = nn.LayerNorm(out_dim)
+
+            # Dropout is handled during the forward pass
+
+        # Optional tanh activation for the output layer
+        if use_tanh:
+            self.tanh = nn.Tanh()
+        
+        self.dropout = dropout
+        self.dropout_prob = dropout_prob
+
+    def forward(self, input):
+        x = input
+        xyz = input[:, -3:] if self.xyz_in_all else None
+
+        for i, (name, lin) in enumerate(self.layers.items()):
+            if self.xyz_in_all and i != len(self.layers) - 1:
+                x = torch.cat([x, xyz], dim=1)
+            
+            x = lin(x)
+
+            if name in self.norms:
+                x = self.norms[name](x)
+
+            if i < len(self.layers) - 1:  # Apply ReLU on all but the last layer
+                x = self.relu(x)
+                if self.dropout is not None and i in self.dropout:
+                    x = F.dropout(x, p=self.dropout_prob, training=self.training)
+            
+            if i == len(self.layers) - 1 and self.use_tanh:
+                x = self.tanh(x)
+
+        return x
+    
+class SdfDecodernew2(nn.Module):
+    def __init__(
+        self,
+        dims, # [256, 256, 256, 256, 256]
+        dropout=None, # [0, 1, 2, 3, 4]
+        dropout_prob=0.0, # 0.05
+        norm_layers=(), # [0,1,2,3,4]
+        xyz_in_all=None, # False
+        use_tanh=False, # False
+        weight_norm=False, # True
+    ):
+        super(SdfDecoder, self).__init__()
+        self.use_tanh = use_tanh
+        modules = OrderedDict()
+
+        input_dim = 3  # Initial input dimension for xyz coordinates
+        dims = [input_dim] + dims + [1]  # Append output dimension
+        
+        for i in range(len(dims) - 1):
+            out_dim = dims[i + 1]
+            layer_name = f"lin{i}"
+
+            # Apply weight normalization if specified and in norm_layers
+            if weight_norm and i in norm_layers:
+                modules[layer_name] = nn.utils.weight_norm(nn.Linear(dims[i], out_dim), name='weight')
+            else:
+                modules[layer_name] = nn.Linear(dims[i], out_dim)
+
+            # Add normalization layers if specified and not using weight normalization
+            if i in norm_layers and not weight_norm:
+                norm_name = f"bn{i}"
+                modules[norm_name] = nn.LayerNorm(out_dim)
+
+            # Add ReLU activation for all but the last layer
+            if i < len(dims) - 2:
+                modules[f"relu{i}"] = nn.ReLU()
+                # Add dropout if specified
+                if dropout_prob > 0:
+                    modules[f"dropout{i}"] = nn.Dropout(dropout_prob)
+
+        # Optionally add a Tanh activation for the output layer
+        if use_tanh:
+            modules["tanh"] = nn.Tanh()
+
+        # Create the sequential model
+        self.model = nn.Sequential(modules)
+
+    def forward(self, x):
+        return self.model(x)
+
+class SdfDecoder2(nn.Module):
+    def __init__(
+        self,
+        dims, # [256, 256, 256, 256, 256]
+        dropout=None, # [0, 1, 2, 3, 4]
+        dropout_prob=0.0, # 0.05
+        norm_layers=(), # [0,1,2,3,4]
+        xyz_in_all=None, # False
+        use_tanh=False, # False
+        weight_norm=False, # True
+    ):
+        super(SdfDecoder, self).__init__()
+        # 固定参数
+        dropout_prob = 0.05
+        use_tanh = False
+        weight_norm = True
+
+        # 定义每一层
+        if weight_norm:
+            self.lin0 = nn.utils.weight_norm(nn.Linear(3, 256))
+            self.lin1 = nn.utils.weight_norm(nn.Linear(256, 256))
+            self.lin2 = nn.utils.weight_norm(nn.Linear(256, 256))
+            self.lin3 = nn.utils.weight_norm(nn.Linear(256, 256))
+            self.lin4 = nn.utils.weight_norm(nn.Linear(256, 256))
+            self.lin5 = nn.Linear(256, 1)
+        else:
+            self.lin0 = nn.Linear(3, 256)
+            self.lin1 = nn.Linear(256, 256)
+            self.lin2 = nn.Linear(256, 256)
+            self.lin3 = nn.Linear(256, 256)
+            self.lin4 = nn.Linear(256, 256)
+            self.lin5 = nn.Linear(256, 1)
+
+        # 所有层使用相同的标准化
+        self.bn0 = nn.LayerNorm(256)
+        self.bn1 = nn.LayerNorm(256)
+        self.bn2 = nn.LayerNorm(256)
+        self.bn3 = nn.LayerNorm(256)
+        self.bn4 = nn.LayerNorm(256)
+        self.bn5 = nn.LayerNorm(1)
+
+        self.relu = nn.ReLU()
+        self.dropout_prob = dropout_prob
+        if use_tanh:
+            self.tanh = nn.Tanh()
+
+    def forward(self, input):
+        x = self.relu(self.bn0(self.lin0(input)))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.relu(self.bn1(self.lin1(x)))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.relu(self.bn2(self.lin2(x)))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.relu(self.bn3(self.lin3(x)))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.relu(self.bn4(self.lin4(x)))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.bn5(self.lin5(x))
+        if hasattr(self, 'tanh'):
+            x = self.tanh(x)
+        return x
+    
+class SdfDecoder(nn.Module):
+    def __init__(
+        self,
+        dims, # [256, 256, 256, 256, 256]
+        dropout=None, # [0, 1, 2, 3, 4]
+        dropout_prob=0.0, # 0.05
+        norm_layers=(), # [0,1,2,3,4]
+        xyz_in_all=None, # False
+        use_tanh=False, # False
+        weight_norm=False, # True
+    ):
+        super(SdfDecoder, self).__init__()
+        # 固定参数
+        dropout_prob = 0.05
+        use_tanh = False
+        weight_norm = True
+
+        # 定义每一层
+        if weight_norm:
+            self.lin0 = nn.utils.weight_norm(nn.Linear(3, 256))
+            self.lin1 = nn.utils.weight_norm(nn.Linear(256, 256))
+            self.lin2 = nn.utils.weight_norm(nn.Linear(256, 256))
+            self.lin3 = nn.utils.weight_norm(nn.Linear(256, 256))
+            self.lin4 = nn.utils.weight_norm(nn.Linear(256, 256))
+            self.lin5 = nn.Linear(256, 1)
+        else:
+            self.lin0 = nn.Linear(3, 256)
+            self.lin1 = nn.Linear(256, 256)
+            self.lin2 = nn.Linear(256, 256)
+            self.lin3 = nn.Linear(256, 256)
+            self.lin4 = nn.Linear(256, 256)
+            self.lin5 = nn.Linear(256, 1)
+
+        self.relu = nn.ReLU()
+        self.dropout_prob = dropout_prob
+
+    def forward(self, input):
+        x = self.relu(self.lin0(input))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.relu(self.lin1(x))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.relu(self.lin2(x))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.relu(self.lin3(x))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = self.relu(self.lin4(x))
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
+        x = (self.lin5(x))
+
+        return x
+
+def remove_module_prefix(state_dict,prefix="module."):
     """移除state_dict中的`module.`前缀"""
     new_state_dict = {}
     for key, value in state_dict.items():
-        new_key = key.replace('module.', '')  # 将'module.'替换为空
+        new_key = key.replace(prefix, '')  # 将'module.'替换为空
         new_state_dict[new_key] = value
     return new_state_dict
+
+
 
 def init_recurrent_weights(self):
     for m in self.modules():
@@ -208,12 +451,14 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.warper = Warper(latent_size, **warper_kargs)
         # self.warper = SimpleWarper()
-        # self.sdf_decoder = SdfDecoder(**decoder_kargs)
+        self.sdf_decoder = SdfDecoder(**decoder_kargs)
+        # self.sdf_decoder = nn.Linear(3,1)
 
     def forward(self, input, output_warped_points=False, output_warping_param=False,
                 step=1.0):
         """
         return p_final, x, warping_param
+        return p_final, x
         """
         # pass
         print(input.size())
@@ -234,12 +479,10 @@ class Decoder(nn.Module):
                 else:
                     return x
         else:   # training mode, output intermediate positions and their corresponding sdf prediction
-            xs = []
-            for p in [p_final]:
-                xs.append(self.sdf_decoder(p))
+            xs=self.sdf_decoder(p_final)
             if output_warped_points:
                 if output_warping_param:
-                    return xs
+                    return xs # [40000,1]
                 else:
                     return _, xs
             else:
@@ -277,12 +520,13 @@ def load_SDF_specs(categ_id, sdf_model_folder="pretrained"):
 def load_SDF_model_from_specs(decoder_specs, experiment_directory, checkpoint = "latest") -> Decoder:
     decoder = Decoder(decoder_specs["CodeLength"], **decoder_specs["NetworkSpecs"])
     print(f"load Pretrained SDF model in: {experiment_directory} (Ignore this message when inference.)")
-    # saved_model_state = torch.load(
-    #             os.path.join(experiment_directory, "ModelParameters", checkpoint + ".pth"),\
-    #             )
+    saved_model_state = torch.load(
+                os.path.join(experiment_directory, "ModelParameters", checkpoint + ".pth"),\
+                )
     # decoder.to(device)
     # decoder = torch.nn.DataParallel(decoder, device_ids=parallerl_device)
-    # decoder.load_state_dict(remove_module_prefix(saved_model_state["model_state_dict"]))
+    state_dict = remove_module_prefix(saved_model_state["model_state_dict"])
+    decoder.load_state_dict(state_dict)
     return decoder
     
 

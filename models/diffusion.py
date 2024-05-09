@@ -352,11 +352,24 @@ class DiffusionModel(nn.Module):
         t = torch.randint(0, self.num_timesteps, (x_start.shape[0],), device=x_start.device).long()
 
         # STEP 2: perturb condition
-
-        pc = perturb_point_cloud(cond, self.perturb_pc, self.pc_size, self.crop_percent) if cond is not None else None
-        print("before perturb: ", cond.shape)
-        print("after perturb: ", pc.shape)
-        # import pdb; pdb.set_trace()
+        if type(cond) is tuple:
+            inner_pcd, neighbor_pcds = cond
+            perturbed_inner_pcd = perturb_point_cloud(inner_pcd, self.perturb_pc, self.pc_size, self.crop_percent)
+            neighbor_pcds = neighbor_pcds.permute(1, 0, 2, 3)
+            perturbed_neighbor_pcds = []
+            for neighbor_pcd in neighbor_pcds:
+                neighbor_pcd = perturb_point_cloud(neighbor_pcd, self.perturb_pc, self.pc_size, self.crop_percent)
+                perturbed_neighbor_pcds.append(neighbor_pcd)
+            perturbed_neighbor_pcds = torch.stack(perturbed_neighbor_pcds,axis=1)
+            pc = (perturbed_inner_pcd, perturbed_neighbor_pcds)               
+            
+        else:
+            inner_pcd = cond
+            pc = perturb_point_cloud(inner_pcd, self.perturb_pc, self.pc_size, self.crop_percent)
+            if not (cond is None):
+                print("before perturb: ", inner_pcd.shape)
+                print("after perturb: ", pc.shape)
+            # import pdb; pdb.set_trace()
 
         # STEP 3: pass to forward function
         loss, x, target, model_out, unreduced_loss = self.forward(x_start, t, cond=pc, ret_pred_x=True)

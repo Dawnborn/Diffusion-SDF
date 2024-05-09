@@ -193,12 +193,18 @@ class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
                 prob = torch.randint(low=0, high=10, size=(1,))
                 percentage = 8
                 if prob < percentage or pass_cond==0:
-                    cond_feature = torch.zeros((cond.shape[0], cond.shape[1], self.point_feature_dim), device=data.device)
+                    if type(cond) is tuple:
+                        cond_feature = torch.zeros((cond[0].shape[0], cond[0].shape[1], self.point_feature_dim), device=data.device)
+                    else:
+                        cond_feature = torch.zeros((cond.shape[0], cond.shape[1], self.point_feature_dim), device=data.device)
                     #print("zeros shape: ", cond_feature.shape)
                     print("cond feature shape: ", cond_feature.shape)
                 elif prob >= percentage or pass_cond==1:
                     if self.cond == "ddit_local":
-                        cond_feature = self.pointnet(cond, cond) # [B, N_ptc, 128]
+                        if type(cond) is tuple:
+                            cond_feature = self.pointnet.forward(cond[0], cond[1]) # [B, N_ptc, 128]
+                        else:
+                            cond_feature = self.pointnet.forward(cond)
 
                     else:
                         cond_feature = self.pointnet(cond, cond)
@@ -207,7 +213,10 @@ class DiffusionNet(nn.Module): #junpeng: Diffusion 模型
                     # import pdb; pdb.set_trace()
 
             else:
-                cond_feature = self.pointnet(cond, cond)
+                if self.cond == "ddit_local":
+                    cond_feature = self.pointnet.forward(cond[0], cond[1]) # [B, N_ptc, 128]
+                else:
+                    cond_feature = self.pointnet(cond, cond)
                 try:
                     print("cond feature shape: ", cond_feature.shape) #
                 except:
