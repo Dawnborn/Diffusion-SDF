@@ -190,3 +190,49 @@ python setup.py install
 
 pip install timm
 ```
+
+## Dimr
+```
+conda create -n hjp_diffusionsdfnew_dimr --clone hjp_diffusionsdfnew
+conda activate hjp_diffusionsdfnew_dimr
+```
+### spconv
+```bash
+cd lib/spconv
+module load cudnn/v8.2.1.32
+```
+
+```bash
+python setup.py bdist_wheel
+```
+报错
+```bash
+/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/lib/spconv/src/spconv/all.cc:20:91: error: no matching function for call to ‘torch::jit::RegisterOperators::RegisterOperators(const char [28], <unresolved overloaded function type>)’
+```
+参考[https://blog.csdn.net/Justin_JGT/article/details/136155006]删除jit
+
+报错
+```bash
+/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/lib/spconv/src/spconv/maxpool.cu(116): error: more than one operator ">" matches these operands:
+```
+
+在lib/spconv/CMakeLists.txt中，添加以下内容：
+```
+add_definitions(-D__CUDA_NO_HALF_OPERATORS__)
+```
+
+```
+cd dist
+pip install spconv-1.0-cp37-cp37m-linux_x86_64.whl
+```
+
+### pointgroup
+```bash
+#编译pointgroup
+cd ../../../lib/pointgroup_ops
+python setup.py develop
+```
+报错src/bfs_cluster/bfs_cluster.h:11:10: fatal error: THC/THC.h: No such file or directory
+
+remove include THC/THC.h
+

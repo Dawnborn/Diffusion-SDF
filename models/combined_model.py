@@ -15,7 +15,25 @@ import time
 import deep_sdf
 import deep_sdf.workspace as ws
 
+from lib.pointgroup_ops.functions import pointgroup_ops
+import spconv
+from spconv.modules import SparseModule
+from models.archs.dimr_model import DIMR_model
+
 loss_l1 = torch.nn.L1Loss(reduction="mean")
+
+def huber_loss(error, delta=1.0):
+    """
+    x = error = pred - gt or dist(pred,gt)
+    0.5 * |x|^2                 if |x|<=d
+    0.5 * d^2 + d * (|x|-d)     if |x|>d
+    Ref: https://github.com/charlesq34/frustum-pointnets/blob/master/models/model_util.py
+    """
+    abs_error = torch.abs(error)
+    quadratic = torch.clamp(abs_error, max=delta)
+    linear = (abs_error - quadratic)
+    loss = 0.5 * quadratic**2 + delta * linear
+    return loss
 
 class CombinedModel(pl.LightningModule):
     def __init__(self, specs, dataloader=None):
@@ -61,6 +79,10 @@ class CombinedModel(pl.LightningModule):
             # self.decoder.sdf_decoder.eval()
             for param in self.decoder.sdf_decoder.parameters():
                 param.requires_grad = False
+        
+        if self.task in ('combined_dimr'):
+            self.dimr_model = DIMR_model()
+
 
     def training_step(self, x, idx):
 
@@ -72,6 +94,8 @@ class CombinedModel(pl.LightningModule):
             return self.train_diffusion(x)
         elif self.task == 'combined_ddit':
             return self.train_combined_ddit(x)
+        elif self.task == 'combined_dimr':
+            return self.train_combined_dimr(x)
 
     def configure_optimizers(self):
 
@@ -98,6 +122,10 @@ class CombinedModel(pl.LightningModule):
             #     {'params': self.ddit_model.parameters(),
             #      'lr': self.specs['sdf_lr']}
             # ]
+        elif self.task == "combined_dimr":
+            params_list = [
+                {'params':self.parameters(), 'lr':self.specs['lr']}
+            ]
         optimizer = torch.optim.Adam(params_list)
         return {
             "optimizer": optimizer,
@@ -108,6 +136,62 @@ class CombinedModel(pl.LightningModule):
         }
 
     # -----------different training steps for sdf modulation, diffusion, combined----------
+
+    def train_combined_dimr(self, x):
+        self.train
+
+        inner_ptc = x['point_cloud'].detach()
+
+        device = inner_ptc.device
+        
+        B,N,C = inner_ptc.shape
+
+        locs = []
+        locs_float = []
+
+        for idx_batch, xyz_middle in enumerate(inner_ptc):
+            xyz = xyz_middle*50
+            xyz -= xyz.min(0)[0]
+            batch_idxs = torch.LongTensor(xyz.shape[0], 1).fill_(idx_batch)
+            batch_idxs = batch_idxs.to(device)
+            locs.append(torch.cat([batch_idxs, xyz.long()], dim=1))
+            locs_float.append(xyz_middle)
+
+        locs = torch.cat(locs,0).to(device)
+        locs_float = torch.cat(locs_float, 0).to(device)
+
+        self.full_scale = [128, 512]
+        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).cpu().numpy(), self.full_scale[0], None)
+
+        voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, B, 4)
+
+        feats = locs_float
+        voxel_feats = pointgroup_ops.voxelization(feats, v2p_map, mode=4)  # (M, C), float, cuda # cfg.mode 4=mean
+
+        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None)     # long (3)
+
+        input_ = spconv.SparseConvTensor(voxel_feats, voxel_locs.int(), spatial_shape, B)
+
+        model_inp = {
+            "input": input_,
+            "input_map": p2v_map,
+            "coords": locs_float,
+            "batch_idxs": locs[:,0].int(), # id mark of concatenated pointcloud in the batch
+            "B": B
+        }
+
+        ret  = self.dimr_model.forward(model_inp)
+        pred_zs = ret['proposal_zs']
+
+        gt_latent = x["latent"].detach()
+
+        loss = huber_loss(pred_zs - gt_latent).mean(dim=1)
+
+        loss_dict = {"loss": loss.detach()}
+
+        self.log_dict(loss_dict, prog_bar=True, enable_graph=False)
+
+        return loss
 
     def train_combined_ddit(self, x):
         self.train()

@@ -12,3 +12,5 @@ tensorboard_logs
 **.pcd
 **lightning_logs
 **/recon/
+**/build
+**.egg-info
