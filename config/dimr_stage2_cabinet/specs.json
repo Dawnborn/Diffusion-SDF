@@ -47,7 +47,7 @@
       "trans_dim":384,
       "knn_layer":1,
       "PCTranformer_depth":8,
-      "wanted_category":["02818832"],
+      "wanted_category":["02933112"],
       "ptc_sample_num":6000,
       "max_neighbour":3
     }

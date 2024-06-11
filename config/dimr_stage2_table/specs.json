@@ -12,6 +12,11 @@
   "use_neighbor":false,
   "preprocess":"/storage/user/huju/transferred/ws_dditnach/DDIT_repro/DDIT/preprocess_output_repro/experiment_table_default_repro_withoutfix",
 
+  "latent_path_root":"/storage/user/huju/transferred/ws_dditnach/DeepImplicitTemplates/examples/tables_dit_manifoldplus_scanarcw_origprep_all_large_pretrainedsofas/LatentCodes/train/2000/canonical_mesh_manifoldplus/04379243",
+  "pcd_path_root":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
+  "json_file_root":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
+  "sdf_file_root":"/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04379243",
+
   "diffusion_specs" : {
     "timesteps" : 1000,
     "objective" : "pred_x0",

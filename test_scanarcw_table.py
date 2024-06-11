@@ -50,7 +50,8 @@ if __name__ == "__main__":
                         # default="config/ddit_stage2_diff_cond_sofa_train_neighbor",
                         # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
                         # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor_pcd128test",
-                        default="config/ddit_stage2_diff_cond_table_train_noneighbor",
+                        # default="config/ddit_stage2_diff_cond_table_train_noneighbor",
+                        default="config/ddit_stage2_diff_cond_table_train_neighbor",
                         help='Path to the configuration directory.')
 
     parser.add_argument('--ckpt', type=str,
@@ -67,7 +68,8 @@ if __name__ == "__main__":
                         # default="23999",
                         # default="69999",
                         # default="49999",
-                        default="50999",
+                        # default="50999",
+                        default="23999",
                         help='Checkpoint number or "last".')
 
     parser.add_argument('--nocond',

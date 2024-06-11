@@ -51,7 +51,7 @@ def compute_iou(mesh1, mesh2, sample_count=100000):
     intersection_volume = volume1 + volume2 - union_volume
     
     # 计算IoU
-    iou = intersection_volume / union_volume
+    iou = intersection_volume /union_volume
     return iou
 
 def trimesh_to_plotly_mesh3d(mesh):

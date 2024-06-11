@@ -14,3 +14,4 @@ tensorboard_logs
 **/recon/
 **/build
 **.egg-info
+**.html

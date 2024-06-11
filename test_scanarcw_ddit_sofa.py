@@ -52,9 +52,9 @@ if __name__ == "__main__":
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_neighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_neighbor",
-                        default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa",
+                        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa",
                         # default="/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd1000test",
-                        # default="/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd128test",
+                        default="/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd128test",
                         help='Path to the configuration directory.')
 
     parser.add_argument('--ckpt', type=str,
@@ -181,7 +181,7 @@ if __name__ == "__main__":
         #    preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/afterfix_exp_1cl_standard_lr_scheduler_newpretraineddithjpdataorig_diff_l1",
         preprocess=specs.get("preprocess", None),
         sdf_size=specs.get("sdf_samples", 20000),
-        mode="test",
+        mode=args.mode,
         specs=specs,
         use_sdf=True,
         )
@@ -215,7 +215,7 @@ if __name__ == "__main__":
             latent_pred = model.generate_lat_from_pc_ddit(pcd,neighbor_pcd)
             torch.save(latent_pred, lat_vec_path)
 
-        ptc_out_dir = os.path.join(config_path, "pcd")
+        ptc_out_dir = os.path.join(config_path, "pcd", args.ckpt)
         os.makedirs(ptc_out_dir, exist_ok=True)
         ptc_save_path = os.path.join(ptc_out_dir, os.path.basename(lat_name) + ".pcd")
         if not os.path.exists(ptc_save_path):

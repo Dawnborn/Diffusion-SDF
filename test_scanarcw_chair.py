@@ -51,6 +51,7 @@ if __name__ == "__main__":
                         # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_neighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor",
+                        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor",
                         default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor",
                         help='Path to the configuration directory.')
 
@@ -80,7 +81,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--create_mesh", default=True)
 
-    parser.add_argument("--max_batch", default=2**17)
+    parser.add_argument("--max_batch", default=2**19)
     
 
     # 解析命令行参数

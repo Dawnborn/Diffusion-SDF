@@ -179,7 +179,7 @@ if __name__ == "__main__":
                         #    preprocess="/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/afterfix_exp_1cl_standard_lr_scheduler_newpretraineddithjpdataorig_diff_l1",
                             preprocess=specs.get("preprocess", None),
                             sdf_size=specs.get("sdf_samples",20000),
-                            mode="test",
+                            mode=args.mode,
                             specs=specs,
                             use_sdf=False,
                             )

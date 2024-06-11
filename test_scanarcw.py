@@ -50,7 +50,8 @@ if __name__ == "__main__":
                         # default="config/ddit_stage2_diff_cond_sofa_train_neighbor",
                         # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
                         # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor_pcd128test",
-                        default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
+                        # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
+                        default="config/ddit_stage2_diff_cond_sofa_train_noneighbor_pcd1000test",
                         help='Path to the configuration directory.')
 
     parser.add_argument('--ckpt', type=str,

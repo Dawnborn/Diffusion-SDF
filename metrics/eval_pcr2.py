@@ -243,21 +243,108 @@ label2id = {
         "cabinet": "02933112",
         'plane':'02691156',
         'bottle':'02876657',
+        "bookshelf":"02871439",
     }
 
 # %%
-label = "sofa"
 gt_root = "/storage/user/huju/transferred/ws_dditnach/DATA/ScanARCW/canonical_mesh_manifoldplus"
-gt_root = os.path.join(gt_root,label2id[label])
 
 sdf_root = "/storage/user/huju/transferred/ws_dditnach/DeepSDF/data/SdfSamples/canonical_mesh_manifoldplus" # 加载相关的transformation
 
 # output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/stage2_diff_cond_scanarcw/recon/49999/Meshes"
 # output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond/recon/23999/Meshes"
 # output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_neighbor/output/49999/test/mesh/Meshes"
-output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor/output/69999/test/mesh/Meshes"
-pcd_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor/pcd"
 
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor"
+# output_root = os.path.join(exp_dir, "/output/69999/test/mesh/Meshes")
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa/output/999/test/mesh/Meshes"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_sofa"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_sofa/output/1199/test/mesh/Meshes"
+
+# label = "bed"
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_bed"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_bed/output/999/test/mesh"
+
+# label = "bed"
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_bed"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_bed/output/999/test/mesh"
+
+# label = "bed"
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_bed_train_noneighbor"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_bed_train_noneighbor/output/55999/test/mesh"
+
+# label = "chair"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_chair"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_chair/output/999/test/mesh/Meshes"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor/output/18999/test/mesh/oldMeshes"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_chair"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_chair/output/999/test/mesh"
+
+# label="table"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_table"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_table/output/999/test/mesh/Meshes"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_table_train_noneighbor"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_table_train_noneighbor/output/50999/test/mesh/Meshes"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_table"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_table/output/999/test/mesh"
+
+# label="bookshelf"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_bookshelf"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_bookshelf/output/999/test/mesh"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_bookshelf_train_noneighbor"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_bookshelf_train_noneighbor/output/23999/test/mesh"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_bookshelf"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_bookshelf/output/999/test/mesh"
+
+# label="cabinet"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_cabinet"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_cabinet/output/999/test/mesh"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_cabinet_train_noneighbor"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_cabinet_train_noneighbor/output/23999/test/mesh"
+
+label="sofa"
+exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_neighbor"
+output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_neighbor/output/69999/test/mesh/Meshes"
+
+exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor"
+output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor/output/69999/test/mesh/Meshes"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage3_diff_cond_sofa_train_noneighbor"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage3_diff_cond_sofa_train_noneighbor/output/5399/test/mesh"
+
+# label="cabinet"
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_cabinet"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_cabinet/output/999/test/mesh"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd1000test"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd1000test/output/999/test/mesh/Meshes"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd128test"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd128test/output/999/test/mesh"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor_pcd1000test"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor_pcd1000test/output/69999/test/mesh/Meshes"
+
+# exp_dir = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor_pcd128test"
+# output_root = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_sofa_train_noneighbor_pcd128test/output/69999/test/mesh/Meshes"
+
+gt_root = os.path.join(gt_root, label2id[label])
+pcd_root = os.path.join(exp_dir,"pcd")
 mesh_list = os.listdir(output_root)
 pcrs = []
 base_names = []
@@ -266,8 +353,8 @@ for id_mesh, mesh in tqdm(enumerate(mesh_list)):
 
     # if id_mesh>9:
     #     break
-
     mesh_path1 = os.path.join(output_root,mesh)
+    print(mesh_path1)
 
     base_name = os.path.basename(mesh_path1).split(".")[0]
     base_names.append(base_name)
@@ -338,7 +425,9 @@ for id_mesh, mesh in tqdm(enumerate(mesh_list)):
 # %%
 pcrs = np.array(pcrs)
 print("mean pcr:{}".format(pcrs.mean()))
-pcr_path = output_root.replace("/Meshes","/pcrs.txt")
+# pcr_path = output_root.replace("/Meshes","/pcrs.txt")
+pcr_path = os.path.join(os.path.dirname(output_root),"pcrs.txt")
+print(pcr_path)
 # np.savetxt(pcr_path,pcrs)
 
 # mesh_list_path = output_root.replace("/Meshes","/mesh_pcr_list.txt")
