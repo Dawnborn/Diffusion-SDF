@@ -121,7 +121,7 @@ class DIMR_model(torch.nn.Module):
         )
 
         self.z_linear = torch.nn.Sequential(
-            torch.nn.Linear(4*m+6, 8*m),
+            torch.nn.Linear(4*m, 8*m),
             torch.nn.LeakyReLU(0.01),
             torch.nn.Linear(8*m, 16*m),
             torch.nn.LeakyReLU(0.01),
@@ -129,6 +129,8 @@ class DIMR_model(torch.nn.Module):
             torch.nn.LeakyReLU(0.01),
             torch.nn.Linear(32*m, 256), # zs
         )
+
+        self.score_fullscale = [256, 256]
         
     def clusters_voxelization(self, batch_idxs, feats, coords, fullscale, mode=4):
         '''
@@ -204,15 +206,17 @@ class DIMR_model(torch.nn.Module):
         # clusters_points_coords = clusters_points_coords.long()
         # clusters_points_coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), clusters_points_coords.cpu()], 1)  # (sumNPoint, 1 + 3)
 
-        out_coords, inp_map, out_map = pointgroup_ops.voxelization_idx(clusters_points_coords, int(batch_idxs[-1, 0]) + 1, mode)
+        clusters_points_coords = (clusters_points_coords*128).long().cpu() + 128
+        clusters_points_coords = torch.cat([batch_idxs.view(-1,1), clusters_points_coords], dim=1)
+        out_coords, inp_map, out_map = pointgroup_ops.voxelization_idx(clusters_points_coords, int(max(batch_idxs)) + 1, mode) #TODO clusters_points_coords*scale
         # output_coords: M * (1 + 3) long
         # input_map: sumNPoint int
         # output_map: M * (maxActive + 1) int
 
         out_feats = pointgroup_ops.voxelization(clusters_points_feats, out_map.cuda(), mode)  # (M, C), float, cuda
 
-        spatial_shape = [fullscale] * 3
-        voxelization_feats = spconv.SparseConvTensor(out_feats, out_coords.int().cuda(), spatial_shape, int(batch_idxs[-1, 0]) + 1)
+        spatial_shape = [fullscale[0]] * 3
+        voxelization_feats = spconv.SparseConvTensor(out_feats, out_coords.int().cuda(), spatial_shape, int(max(batch_idxs)) + 1)
 
         return voxelization_feats, inp_map
 
@@ -240,7 +244,12 @@ class DIMR_model(torch.nn.Module):
         proposal_out = self.z_in(input_feats)
         proposal_out = self.z_net(proposal_out)
         proposal_out = self.z_out(proposal_out)
-        proposal_zs = self.z_linear(proposal_out)
+        proposal_out = proposal_out.features[inp_map.long()] # (sumNPoint, C)
+
+        proposal_zs = self.z_linear(proposal_out) # torch.Size([12000, 64])
+        sumNPoint, zs_dim = proposal_zs.shape
+        proposal_zs = proposal_zs.view(B, int(sumNPoint/B), zs_dim)
+        proposal_zs = proposal_zs.mean(dim=1)
         
         ret = {}
 

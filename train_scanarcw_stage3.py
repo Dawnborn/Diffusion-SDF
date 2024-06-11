@@ -56,7 +56,8 @@ def train():
                                preprocess=specs.get("preprocess", None),
                                sdf_size=specs.get("sdf_samples",20000),
                                mode="train",
-                               specs=specs
+                               specs=specs,
+                               use_sdf=True
                                )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -122,7 +123,8 @@ if __name__ == "__main__":
         # default="config/ddit_stage2_diff_cond",
         # default="config/ddit_stage2_diff_cond_sofa_train",
         # default="config/ddit_stage2_diff_cond_sofa_train_neighbor",
-        default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
+        # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
+        default="config/ddit_stage3_diff_cond_sofa_train_noneighbor",
         help="This directory should include experiment specifications in 'specs.json,' and logging will be done in this directory as well.",
     )
     arg_parser.add_argument(
@@ -140,7 +142,7 @@ if __name__ == "__main__":
         help="end to end supervision",
     )
 
-    arg_parser.add_argument("--batch_size", "-b", default=10, type=int)
+    arg_parser.add_argument("--batch_size", "-b", default=2, type=int)
     arg_parser.add_argument("--workers", "-w", default=12, type=int)
     arg_parser.add_argument("--pre_load", "-p", default=True, type=bool)
     # arg_parser.add_argument("--pre_load", "-p", action='store_true')

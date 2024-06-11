@@ -427,7 +427,7 @@ class Warper(nn.Module):
 
         warped_xyzs = []
         for s in range(self.steps):
-            state = self.lstm(torch.cat([code, xyz], dim=1), states[-1])
+            state = self.lstm(torch.cat([code, xyz], dim=1).cuda(), states[-1])
             if state[0].requires_grad:
                 state[0].register_hook(lambda x: x.clamp(min=-10, max=10))
             a = self.out_layer_coord_affine(state[0])
@@ -503,11 +503,13 @@ def load_SDF_specs(categ_id, sdf_model_folder="pretrained"):
     elif categ_id == '04379243':
         experiment_directory = os.path.join(sdf_model_folder, "tables_dit")
     elif categ_id == '02871439':
-        experiment_directory = os.path.join(sdf_model_folder, "cabinets_bookshelfs_dit")
+        experiment_directory = os.path.join(sdf_model_folder, "bookshelfs_dit")
     elif categ_id == '02818832':
         experiment_directory = os.path.join(sdf_model_folder, "beds_dit")
     elif categ_id == '02808440':
         experiment_directory = os.path.join(sdf_model_folder, "bathtubs_dit")
+    elif categ_id == '02933112':
+        experiment_directory = os.path.join(sdf_model_folder, "cabinets_dit")
     else:
         raise ValueError('Unknown categ_id')
     specs_filename = os.path.join(experiment_directory, "specs.json")

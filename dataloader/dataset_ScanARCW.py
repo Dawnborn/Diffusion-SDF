@@ -68,9 +68,10 @@ def farthest_point_sample(point: np.ndarray, npoint: int):
                                )
         return point
 
-    if N > 2 * npoint:
-        point = random_point_sample(point, 2 * npoint)
+    if N > npoint:
+        point = random_point_sample(point, npoint)
         N, D = point.shape
+        return point
 
     xyz = point[:, :3]
     centroids = np.zeros((npoint,))
@@ -254,7 +255,7 @@ class MyScanARCWDataset(torch.utils.data.Dataset):
             i_latent_path = os.path.join(self.latent_path_root, i_name)
             self.latent_paths.append(i_latent_path)
 
-            scene_name, ins_id, obj_id = self.get_info_from_latent_name(l_name=latent)
+            scene_name, ins_id, obj_id = self.get_info_from_latent_name(l_name=i_name)
             if self.pre_load:
                 self.latent_dict[i_latent_path] = self.load_latent(i_latent_path)
                 if self.conditional:

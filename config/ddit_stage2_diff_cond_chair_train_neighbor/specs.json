@@ -39,7 +39,9 @@
       "wanted_category":["03001627"]
     }
 
-  }
+  },
+
+  "sdf_model":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples_NewPretrainedDITonHJPDataOrig"
 
 }
 

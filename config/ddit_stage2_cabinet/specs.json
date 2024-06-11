@@ -1,0 +1,55 @@
+{
+  "Description" : "ddit training (conditional) on sofas dataset 结果移植到ddit框架下",
+  "pc_path" : "data",
+  "total_pc_size" : 10000,
+  "training_task": "combined_ddit",
+  
+  "num_epochs" : 70001,
+  "log_freq" : 1000,
+
+  "diff_lr" : 1e-5,
+
+  "use_neighbor":true,
+  "max_neighbor":3,
+
+  "latent_path_root":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/cabinets_dit_manifoldplus_scanarcw_origprep_all_large_pretrainedsofas/LatentCodes/train/2000/canonical_mesh_manifoldplus/02933112",
+  "pcd_path_root":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
+  "json_file_root":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
+  "sdf_file_root":"/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/02933112",
+
+  "preprocess":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DDIT_repro/DDIT/preprocess_output_repro/experiment_cabinet_default_repro_withoutfix",
+
+  "diffusion_specs" : {
+    "timesteps" : 1000,
+    "objective" : "pred_x0",
+    "loss_type" : "l1",
+    "perturb_pc" : "partial",
+    "crop_percent": 0.5,
+    "sample_pc_size" : 6000
+  },
+
+  "diffusion_model_specs": {
+    "dim" : 256,
+    "depth" : 4,
+    "ff_dropout" : 0.3,
+    "cond" : "ddit_local",
+    "cross_attn" : true,
+    "cond_dropout":true,
+    "point_feature_dim" : 256
+  },
+
+  "sdf_samples":20000,
+  "sdf_model":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples_NewPretrainedDITonHJPDataOrig",
+  "sdf_lr":0.000001,
+  "ddit_specs":{
+      "head_num":10,
+      "trans_dim":384,
+      "knn_layer":1,
+      "PCTranformer_depth":8,
+      "wanted_category":["02933112"],
+      "ptc_sample_num":6000,
+      "max_neighbour":3
+    }
+}
+
+

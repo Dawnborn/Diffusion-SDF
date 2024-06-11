@@ -1,0 +1,47 @@
+{
+  "Description" : "diffusion training (conditional) on sofa dataset 使用ddit版本编码器",
+  "pc_path" : "data",
+  "total_pc_size" : 10000,
+  "training_task": "diffusion",
+  
+  "num_epochs" : 70001,
+  "log_freq" : 1000,
+
+  "diff_lr" : 1e-5,
+
+  "use_neighbor":false,
+  "preprocess":"/storage/user/huju/transferred/ws_dditnach/DDIT/preprocess_output/afterfix_exp_1cl_standard_lr_scheduler_newpretraineddithjpdataorig_diff_l1",
+
+  "sdf_model":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples_NewPretrainedDITonHJPDataOrig",
+
+  "diffusion_specs" : {
+    "timesteps" : 1000,
+    "objective" : "pred_x0",
+    "loss_type" : "l1",
+    "perturb_pc" : "partial",
+    "crop_percent": 0.5,
+    "sample_pc_size" : 128
+  },
+
+  "diffusion_model_specs": {
+    "dim" : 256,
+    "depth" : 4,
+    "ff_dropout" : 0.3,
+    "cond" : "ddit_local",
+    "cross_attn" : true,
+    "cond_dropout":true,
+    "point_feature_dim" : 256,
+
+    "ddit_specs":{
+      "head_num":10,
+      "trans_dim":384,
+      "knn_layer":1,
+      "PCTranformer_depth":8,
+      "wanted_category":["04256520"]
+    }
+
+  }
+
+}
+
+

@@ -68,7 +68,6 @@ class CombinedModel(pl.LightningModule):
             with torch.no_grad():
                 test_output = self.decoder.sdf_decoder(test_input)
 
-
             remove_weight_norm(self.decoder.sdf_decoder)
             calc_and_fix_weights(self.decoder.sdf_decoder)
 
@@ -82,7 +81,27 @@ class CombinedModel(pl.LightningModule):
         
         if self.task in ('combined_dimr'):
             self.dimr_model = DIMR_model()
+            # decoder_specs, experiment_directory = load_SDF_specs(specs["ddit_specs"]["wanted_category"][0], specs["sdf_model"])
+            # self.decoder = load_SDF_model_from_specs(decoder_specs, experiment_directory)
 
+        if self.task in ('stage3'):
+            self.diffusion_model = DiffusionModel(model=DiffusionNet(**specs["diffusion_model_specs"]),
+                                        **specs["diffusion_specs"])
+            r = torch.load(specs["diffusion_ckpt_path"])
+            self.load_state_dict(r["state_dict"])
+
+            decoder_experiment_directory = specs["sdf_expdir"]
+            decoder_specs_filename = os.path.join(decoder_experiment_directory,"specs.json")
+            with open(decoder_specs_filename, 'r') as f:
+                decoder_specs = json.load(f)
+            # decoder_specs, experiment_directory = load_SDF_specs(specs["diffusion_model_specs"]["ddit_specs"]["wanted_category"][0], specs["sdf_model"])
+
+            self.decoder = load_SDF_model_from_specs(decoder_specs, decoder_experiment_directory)
+
+            remove_weight_norm(self.decoder.sdf_decoder)
+            calc_and_fix_weights(self.decoder.sdf_decoder)
+            for param in self.decoder.sdf_decoder.parameters():
+                param.requires_grad = False
 
     def training_step(self, x, idx):
 
@@ -96,6 +115,8 @@ class CombinedModel(pl.LightningModule):
             return self.train_combined_ddit(x)
         elif self.task == 'combined_dimr':
             return self.train_combined_dimr(x)
+        elif self.task == 'stage3':
+            return self.train_finetune_warper(x)
 
     def configure_optimizers(self):
 
@@ -124,9 +145,17 @@ class CombinedModel(pl.LightningModule):
             # ]
         elif self.task == "combined_dimr":
             params_list = [
-                {'params':self.parameters(), 'lr':self.specs['lr']}
+                {'params':self.dimr_model.parameters(), 'lr':self.specs['lr']}
             ]
+        elif self.task == "stage3":
+            params_list = [
+                # {'params':self.diffusion_model.parameters(), 'lr':self.specs['diff_lr']},
+                {'params':self.decoder.warper.parameters(), 'lr':self.specs['sdf_lr']},
+                {'params': self.diffusion_model.parameters(), 'lr': self.specs['diff_lr']}
+            ]
+
         optimizer = torch.optim.Adam(params_list)
+
         return {
             "optimizer": optimizer,
             # "lr_scheduler": {
@@ -137,8 +166,52 @@ class CombinedModel(pl.LightningModule):
 
     # -----------different training steps for sdf modulation, diffusion, combined----------
 
+    def train_finetune_warper(self,x):
+        pcd = x['point_cloud'].detach()
+        gt_latent = x['latent']  # (B, D)
+
+        gt_sdf_xyzv = x['gt_sdf_xyzv'].detach()  # (B, N，4)
+
+        xyz = gt_sdf_xyzv[:,:,:3]
+        gt_sdf = gt_sdf_xyzv[:,:,3]
+
+        # unconditional training if cond is None 
+        if self.specs['diffusion_model_specs']['cond']:
+            cond = pcd
+            if self.specs['use_neighbor']:
+                neighbor_pcds = x['neighbor_pcds']
+                cond = (pcd, neighbor_pcds) # ([10, 6000, 3], [10, 3, 6000, 3])
+        else:
+            cond = None     
+
+        diff_loss, diff_100_loss, diff_1000_loss, pred_latent, perturbed_pc = self.diffusion_model.diffusion_model_from_latent(gt_latent, cond=cond)  # latent: 64,256 B,D
+
+        deform_code = pred_latent
+        deform_code = deform_code.repeat_interleave(self.specs["sdf_samples"], dim=0) # B*sdf_samples, 256
+        xyz = xyz.view(xyz.shape[0]*xyz.shape[1], 3)# B*sdf_samples, 3
+
+        decoder_input = torch.cat([deform_code, xyz], dim = 1)
+        pred_sdf = self.decoder.forward(decoder_input, output_warped_points=True, output_warping_param=True) # p_final, x[40000,1], warping_param
+        gt_sdf = gt_sdf.view(gt_sdf.shape[0]*gt_sdf.shape[1], -1).detach()
+        
+        train_loss_l1 = loss_l1(pred_sdf, gt_sdf)
+        loss = train_loss_l1
+
+        # sdf_loss = F.l1_loss(pred_sdf_list[-1].squeeze(), gt_sdf, reduction='none') # 40000 40000
+        # sdf_loss = reduce(sdf_loss, 'b ... -> b (...)', 'mean').mean()
+        # print("sdf_loss shape:{}".format(sdf_loss.shape))
+        # loss = sdf_loss
+
+        loss_dict = {"loss": loss.detach()}
+
+        self.log_dict(loss_dict, prog_bar=True, enable_graph=False)
+
+        return loss
+
+        
+
     def train_combined_dimr(self, x):
-        self.train
+        self.train()
 
         inner_ptc = x['point_cloud'].detach()
 
@@ -150,23 +223,23 @@ class CombinedModel(pl.LightningModule):
         locs_float = []
 
         for idx_batch, xyz_middle in enumerate(inner_ptc):
-            xyz = xyz_middle*50
+            xyz = xyz_middle*128 #TODO change according to the self.score_full_scale
             xyz -= xyz.min(0)[0]
             batch_idxs = torch.LongTensor(xyz.shape[0], 1).fill_(idx_batch)
             batch_idxs = batch_idxs.to(device)
             locs.append(torch.cat([batch_idxs, xyz.long()], dim=1))
             locs_float.append(xyz_middle)
 
-        locs = torch.cat(locs,0).to(device)
-        locs_float = torch.cat(locs_float, 0).to(device)
+        locs = torch.cat(locs,0).cpu()
+        locs_float = torch.cat(locs_float, 0)
 
-        self.full_scale = [128, 512]
+        self.full_scale = [256, 256]
         spatial_shape = np.clip((locs.max(0)[0][1:] + 1).cpu().numpy(), self.full_scale[0], None)
 
-        voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, B, 4)
+        voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, B, 4) # locs (12000,1+3) min 0 max 235
 
         feats = locs_float
-        voxel_feats = pointgroup_ops.voxelization(feats, v2p_map, mode=4)  # (M, C), float, cuda # cfg.mode 4=mean
+        voxel_feats = pointgroup_ops.voxelization(feats, v2p_map.cuda(), 4)  # (M, C), float, cuda # cfg.mode 4=mean
 
         spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None)     # long (3)
 
@@ -185,7 +258,7 @@ class CombinedModel(pl.LightningModule):
 
         gt_latent = x["latent"].detach()
 
-        loss = huber_loss(pred_zs - gt_latent).mean(dim=1)
+        loss = huber_loss(pred_zs - gt_latent).mean()
 
         loss_dict = {"loss": loss.detach()}
 
@@ -375,4 +448,53 @@ class CombinedModel(pl.LightningModule):
         # deform_code = deform_code.repeat_interleave(self.specs["sdf_samples"], dim=0)  # B*sdf_samples, 256
 
         return deform_code
+
+    def generate_lat_from_pc_dimr(self, pcd):
+        
+        self.eval()
+
+        inner_ptc = pcd.detach()
+
+        device = inner_ptc.device
+        
+        B,N,C = inner_ptc.shape
+
+        locs = []
+        locs_float = []
+
+        for idx_batch, xyz_middle in enumerate(inner_ptc):
+            xyz = xyz_middle*128 #TODO change according to the self.score_full_scale
+            xyz -= xyz.min(0)[0]
+            batch_idxs = torch.LongTensor(xyz.shape[0], 1).fill_(idx_batch)
+            batch_idxs = batch_idxs.to(device)
+            locs.append(torch.cat([batch_idxs, xyz.long()], dim=1))
+            locs_float.append(xyz_middle)
+
+        locs = torch.cat(locs,0).cpu()
+        locs_float = torch.cat(locs_float, 0)
+
+        self.full_scale = [256, 256]
+        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).cpu().numpy(), self.full_scale[0], None)
+
+        voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, B, 4) # locs (12000,1+3) min 0 max 235
+
+        feats = locs_float
+        voxel_feats = pointgroup_ops.voxelization(feats, v2p_map.cuda(), 4)  # (M, C), float, cuda # cfg.mode 4=mean
+
+        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None)     # long (3)
+
+        input_ = spconv.SparseConvTensor(voxel_feats, voxel_locs.int(), spatial_shape, B)
+
+        model_inp = {
+            "input": input_,
+            "input_map": p2v_map,
+            "coords": locs_float,
+            "batch_idxs": locs[:,0].int(), # id mark of concatenated pointcloud in the batch
+            "B": B
+        }
+
+        ret  = self.dimr_model.forward(model_inp)
+        pred_zs = ret['proposal_zs']
+
+        return pred_zs
 

@@ -4,6 +4,8 @@ from diff_utils.helpers import *
 import os
 
 from models import CombinedModel
+from models.archs.deep_implicit_template_decoder import Decoder, load_SDF_model_from_specs, load_SDF_specs, remove_weight_norm, calc_and_fix_weights
+import deep_sdf
 
 from tqdm import tqdm
 
@@ -46,6 +48,8 @@ if __name__ == "__main__":
                         # default="config/stage2_diff_cond_scanarcw_4times420_b280",
                         # default="config/ddit_stage2_diff_cond",
                         # default="config/ddit_stage2_diff_cond_sofa_train_neighbor",
+                        # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
+                        # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor_pcd128test",
                         default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
                         help='Path to the configuration directory.')
 
@@ -63,15 +67,16 @@ if __name__ == "__main__":
                         # default="23999",
                         default="69999",
                         # default="49999",
+                        # default="50999",
                         help='Checkpoint number or "last".')
 
     parser.add_argument('--nocond',
                         default=False,
                         help='Flag to specify no condition mode.')
 
-    parser.add_argument("--mode", default="train")
+    parser.add_argument("--mode", default="test")
 
-    parser.add_argument("--create_mesh", action='store_true')
+    parser.add_argument("--create_mesh", default=True)
 
     parser.add_argument("--max_batch", default=2**17)
     
@@ -119,6 +124,7 @@ if __name__ == "__main__":
         output_path = os.path.join(config_path, "output", ckpt, "nocond", args.mode, "lat")
     else:
         output_path = os.path.join(config_path, "output", ckpt, args.mode, "lat")
+        output_path_mesh = os.path.join(config_path, "output", ckpt, args.mode, "mesh","Meshes")
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -152,10 +158,10 @@ if __name__ == "__main__":
     #                            use_sdf=False
     #                            )
     
-    dataset_test = MyScanARCWDataset(latent_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples/sofas_dit_manifoldplus_scanarcw_origprep_all_mypretrainedb24_b24/LatentCodes/train/2000/canonical_mesh_manifoldplus/04256520",
-                            pcd_path_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA",
-                            json_file_root="/home/wiss/lhao/storage/user/hjp/ws_dditnach/DATA/ScanARCW/json_files_v5",
-                            sdf_file_root="/home/wiss/lhao/binghui_DONTDELETE_ME/DDIT/DATA/ScanARCW_new/ScanARCW/sdf_samples/04256520",
+    dataset_test = MyScanARCWDataset(latent_path_root=specs["latent_path_root"],
+                            pcd_path_root=specs["pcd_path_root"],
+                            json_file_root=specs["json_file_root"],
+                            sdf_file_root=specs["sdf_file_root"],
                         #    split_file=specs.get("TrainSplit",None),
                             pc_size=specs['diffusion_specs'].get('sample_pc_size', 128),
                             length=specs.get('dataset_length', -1),
@@ -176,7 +182,7 @@ if __name__ == "__main__":
         batch_size=1, num_workers=0
     )
 
-    dataset_test.save_latent_paths(os.path.join(config_path, "test_list.txt"))
+    dataset_test.save_latent_paths(os.path.join(config_path, "{}_list.txt".format(args.mode)))
     # import pdb; pdb.set_trace()
 
 
@@ -191,6 +197,11 @@ if __name__ == "__main__":
 
         # pcd = torch.from_numpy(pcd).to(torch.float32).cuda()
         pcd = pcd.cuda()
+        lat_name = os.path.basename(latent_gt_path)
+        lat_vec_path = os.path.join(output_path, lat_name)
+        if os.path.exists(lat_vec_path):
+            continue
+
         samples, perturbed_pc, traj= model.diffusion_model.generate_from_pc(pcd, batch=1, no_cond=nocond, return_pc=True)
         # pdb.set_trace()
         print("traj 0:", traj[0].mean(), traj[0].min(), traj[0].max())
@@ -207,8 +218,6 @@ if __name__ == "__main__":
             print("{} of digits reduced error".format((e1 > e2).float().mean()))
 
         lat_vec = samples.squeeze()
-        lat_name = os.path.basename(latent_gt_path)
-        lat_vec_path = os.path.join(output_path, lat_name)
         # pdb.set_trace()
         torch.save(lat_vec, lat_vec_path)
 
@@ -220,15 +229,28 @@ if __name__ == "__main__":
         pcd.points = o3d.utility.Vector3dVector(perturbed_pc.cpu().numpy().squeeze())
         o3d.io.write_point_cloud(ptc_save_path, pcd)
 
-        # if args.create_mesh:
+        if (args.create_mesh):
+            # import pdb; pdb.set_trace()
+            experiment_directory = specs["sdf_exp_dir"]
+            decoder_specs_filename = os.path.join(experiment_directory, "specs.json")
+            with open(decoder_specs_filename, 'r') as f:
+                decoder_specs = json.load(f)
             
-        #     mesh_path = None
+            model.decoder = load_SDF_model_from_specs(decoder_specs, experiment_directory)
+            model.decoder.to(lat_vec.device)
 
-        #     decoder = None
-
-        #     clamping_function = lambda x : torch.clamp(x, -0.1, 0.1)
-        #     deep_sdf.mesh.create_mesh_octree(
-        #         decoder_dict[_categ_current], lat_vec, mesh_path, N=256, max_batch=args.max_batch,
-        #         clamp_func=clamping_function
-        #     )
-        #     print("mesh saved to {}".format(mesh_path))
+            model.decoder = load_SDF_model_from_specs(decoder_specs, experiment_directory)
+            model.decoder.to(lat_vec.device)
+            
+            # mesh_dir = os.path.join(config_path, "mesh_test", args.mode, args.ckpt)
+            if not os.path.isdir(output_path_mesh):
+                os.makedirs(output_path_mesh)
+            
+            mesh_path = os.path.join( output_path_mesh, "{}.ply".format(lat_name.split(".")[0]) )
+            if not os.path.exists(mesh_path):
+                clamping_function = lambda x : torch.clamp(x, -0.1, 0.1)
+                deep_sdf.mesh.create_mesh_octree(
+                    model.decoder, lat_vec, mesh_path, N=256, max_batch=args.max_batch,
+                    clamp_func=clamping_function
+                )
+                print("mesh saved to {}".format(mesh_path))

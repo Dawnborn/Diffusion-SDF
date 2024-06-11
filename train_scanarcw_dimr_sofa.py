@@ -130,8 +130,8 @@ if __name__ == "__main__":
     )
     arg_parser.add_argument(
         "--resume", "-r", 
-        # default="last",
-        default=None,
+        default="last",
+        # default=None,
         # default="29999",
         # default="26999",
         help="continue from previous saved logs, integer value, 'last', or 'finetune'",

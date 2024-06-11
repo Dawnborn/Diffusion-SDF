@@ -5,7 +5,7 @@
   "training_task": "combined_dimr",
   
   "num_epochs" : 70001,
-  "log_freq" : 1000,
+  "log_freq" : 100,
 
   "lr" : 1e-4,
 
@@ -28,17 +28,18 @@
     "cond" : "ddit_local",
     "cross_attn" : true,
     "cond_dropout":true,
-    "point_feature_dim" : 256,
+    "point_feature_dim" : 256
+  },
 
-    "ddit_specs":{
+  "ddit_specs":{
       "head_num":10,
       "trans_dim":384,
       "knn_layer":1,
       "PCTranformer_depth":8,
       "wanted_category":["04256520"]
-    }
+  },
 
-  }
+  "sdf_model":"/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/examples_NewPretrainedDITonHJPDataOrig"
 
 }
 

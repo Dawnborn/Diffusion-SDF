@@ -74,8 +74,8 @@ if __name__ == "__main__":
                         # default="27999",
                         # default="1999",
                         # default="9999",
-                        # default="999",
-                        default="2999",
+                        default="999",
+                        # default="2999",
                         help='Checkpoint number or "last".')
 
     parser.add_argument('--nocond',

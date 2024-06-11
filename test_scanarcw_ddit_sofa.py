@@ -53,6 +53,8 @@ if __name__ == "__main__":
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_neighbor",
                         default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa",
+                        # default="/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd1000test",
+                        # default="/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/ddit_stage2_sofa_pcd128test",
                         help='Path to the configuration directory.')
 
     parser.add_argument('--ckpt', type=str,
@@ -73,7 +75,8 @@ if __name__ == "__main__":
                         # default="27999",
                         # default="1999",
                         # default="9999",
-                        default="13999",
+                        # default="13999",
+                        default="999",
                         help='Checkpoint number or "last".')
 
     parser.add_argument('--nocond',
@@ -201,14 +204,16 @@ if __name__ == "__main__":
         latent_gt_path = data['latent_path'][0]
         # pdb.set_trace()
 
-        # pcd = torch.from_numpy(pcd).to(torch.float32).cuda()
-        pcd = pcd.cuda()
-        latent_pred = model.generate_lat_from_pc_ddit(pcd,neighbor_pcd)
-
         lat_name = os.path.basename(latent_gt_path)
         lat_vec_path = os.path.join(output_path, lat_name)
         # pdb.set_trace()
-        torch.save(latent_pred, lat_vec_path)
+        if os.path.exists(lat_vec_path):
+            latent_pred = torch.load(lat_vec_path)
+        else:
+            # pcd = torch.from_numpy(pcd).to(torch.float32).cuda()
+            pcd = pcd.cuda()
+            latent_pred = model.generate_lat_from_pc_ddit(pcd,neighbor_pcd)
+            torch.save(latent_pred, lat_vec_path)
 
         ptc_out_dir = os.path.join(config_path, "pcd")
         os.makedirs(ptc_out_dir, exist_ok=True)
