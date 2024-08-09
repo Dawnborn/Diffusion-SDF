@@ -52,7 +52,8 @@ if __name__ == "__main__":
                         # default="config/ddit_stage2_diff_cond_sofa_train_noneighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_neighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor",
-                        default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_bookshelf_train_noneighbor",
+                        # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_bookshelf_train_noneighbor",
+                        default="/storage/user/huju/transferred2/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_bookshelf_train_noneighbor"
                         help='Path to the configuration directory.')
 
     parser.add_argument('--ckpt', type=str,

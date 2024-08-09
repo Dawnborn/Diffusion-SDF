@@ -222,7 +222,7 @@ if __name__ == "__main__":
         # pdb.set_trace()
         torch.save(lat_vec, lat_vec_path)
 
-        ptc_out_dir = os.path.join(config_path,"pcd")
+        ptc_out_dir = os.path.join(config_path,"pcd", args.ckpt)
         os.makedirs(ptc_out_dir, exist_ok=True)
         ptc_save_path = os.path.join(ptc_out_dir, os.path.basename(lat_name)+".pcd")
         # save perturbed pc ply file for visualization

@@ -172,7 +172,7 @@ pip install open3d
 pip install rotary-embedding-torch==0.2.1
 ```
 
-install DDIT model
+## install DDIT model
 
 pointnet_op2
 ```
@@ -236,3 +236,43 @@ python setup.py develop
 
 remove include THC/THC.h
 
+
+# My install on node
+
+node17
+
+conda create -n diffusionsdf python=3.9
+
+module load cuda/11.3.0
+module load cudnn/v8.2.1.32
+
+pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+
+pip install pytorch-lightning==1.6.4
+
+pip install einops==0.6.0 einops_exts trimesh
+
+wget https://data.pyg.org/whl/torch-1.11.0%2Bcu113/torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl
+pip install torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl
+
+pip install plyfile pandas joblib scikit-image==0.19.2 open3d rotary-embedding-torch==0.2.1
+
+pip install msgpack-numpy lmdb h5py hydra-core
+
+module load compiler/gcc-10.1
+conda install -c conda-forge cmake
+
+cd /storage/user/huju/transferred2/ws_dditnach/DDIT_thirdparty/Pointnet2_PyTorch/pointnet2_ops_lib
+python setup.py install # 需要ninja -> prep_env.sh指定
+
+pip install timm
+
+cd lib/spconv
+python setup.py bdist_wheel
+cd dist
+pip install spconv-1.0-cp37-cp37m-linux_x86_64.whl
+
+cd ../../../lib/pointgroup_ops
+python setup.py develop
+
+pip install tensorboardX

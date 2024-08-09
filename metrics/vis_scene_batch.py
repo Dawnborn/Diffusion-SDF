@@ -295,8 +295,13 @@ for key,val in val_pred_path.items():
 
 from tqdm import tqdm
 
-for scene_name in tqdm(list(statis_dict.index)):
-    data_root = "/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/DATA"
+for scene_name in tqdm(sorted(list(statis_dict.index))):
+    image_path = "/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/metrics/scenes_all/{}.png".format(scene_name)
+    if os.path.exists(image_path):
+        continue
+
+    # data_root = "/home/wiss/lhao/storage/user/hjp/ws_dditnach/DeepImplicitTemplates/DATA"
+    data_root = "/storage/user/huju/transferred/ws_dditnach/DATA"
     json_version = "json_files_v5"
     traj_file = None
 
@@ -351,20 +356,26 @@ for scene_name in tqdm(list(statis_dict.index)):
             
             if (instance_data['category_name'] in ["window","door"]):
                 if SEGPCD_VIS:
-                    seg_pcd_path = os.path.join(data_root,instance_data["segmented_cloud"])
-                    seg_pcd = load_pcd_vis( seg_pcd_path, sub_sample=int( M/len(instances_data.keys()) ) )
-                    seg_pcd.name = "pcd_{}".format(instance_id)
-                    # seg_pcd['color'] = pcd_color
-                    vis_data.append(seg_pcd)
+                    try:
+                        seg_pcd_path = os.path.join(data_root,instance_data["segmented_cloud"])
+                        seg_pcd = load_pcd_vis( seg_pcd_path, sub_sample=int( M/len(instances_data.keys()) ) )
+                        seg_pcd.name = "pcd_{}".format(instance_id)
+                        # seg_pcd['color'] = pcd_color
+                        vis_data.append(seg_pcd)
+                    except:
+                        print("no segmented pcd!!!")
 
 
             if (instance_data['category_name'] in ["layout"]):
                 if SEGPCD_VIS:
-                    seg_pcd_path = os.path.join(data_root,instance_data["segmented_cloud"])
-                    seg_pcd = load_pcd_vis( seg_pcd_path )
-                    seg_pcd.name = "pcd_{}".format(instance_id)
-                    # seg_pcd['color'] = pcd_color
-                    vis_data.append(seg_pcd)
+                    try:
+                        seg_pcd_path = os.path.join(data_root,instance_data["segmented_cloud"])
+                        seg_pcd = load_pcd_vis( seg_pcd_path )
+                        seg_pcd.name = "pcd_{}".format(instance_id)
+                        # seg_pcd['color'] = pcd_color
+                        vis_data.append(seg_pcd)
+                    except:
+                        print("no segmented pcd!!")
 
             gt_translation_c2w = np.array(instance_data["gt_translation_c2w"]) # 3,
             mesh_path = os.path.join(data_root,instance_data["gt_scaled_canonical_mesh"])
@@ -427,5 +438,6 @@ for scene_name in tqdm(list(statis_dict.index)):
     fig = go.Figure(data=vis_data, layout=layout)
     # fig.show()
     # pio.write_html(fig, "scene0248_00diff.html")
-    pio.write_image(fig,"/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/metrics/scenes_all/{}.png".format(scene_name))
-        
+    if os.path.exists(image_path):
+        continue
+    pio.write_image(fig,image_path)

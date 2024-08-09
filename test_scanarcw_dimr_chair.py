@@ -54,7 +54,7 @@ if __name__ == "__main__":
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_noneighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/ddit_stage2_diff_cond_chair_train_neighbor",
                         # default="/home/wiss/lhao/storage/user/hjp/ws_dditnach/Diffusion-SDF/config/dimr_stage2_sofa",
-                        default="/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/config/dimr_stage2_chair",
+                        default="/storage/user/huju/transferred2/ws_dditnach/Diffusion-SDF/config/dimr_stage2_chair",
                         help='Path to the configuration directory.')
 
     parser.add_argument('--ckpt', type=str,
