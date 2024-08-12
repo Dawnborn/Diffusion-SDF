@@ -45,6 +45,8 @@ class CMakeBuild(build_ext):
                       '-DCMAKE_PREFIX_PATH=' + LIBTORCH_ROOT,
                       '-DPYBIND11_PYTHON_VERSION={}'.format(PYTHON_VERSION),
                       '-DSPCONV_BuildTests=OFF',
+                      '-DCMAKE_CUDA_ARCHITECTURES=86',
+                      '-DCMAKE_CUDA_COMPILER=/home/junpeng/ws_dditnach/mycuda/cuda-11.3/bin/nvcc',
                       '-DCMAKE_CUDA_FLAGS="--expt-relaxed-constexpr"']
 
         cfg = 'Debug' if self.debug else 'Release'

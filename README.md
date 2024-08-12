@@ -141,7 +141,7 @@ pip install trimesh
 pip install scikit-image
 ```
 
-install `pytorch_scatter`
+## install `pytorch_scatter`
 
 <!-- ```
 conda activate hjp_diffusionsdfnew
@@ -159,6 +159,7 @@ pip install torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl
 
 测试
 ```
+python
  from torch_scatter import scatter_max
 ```
 
@@ -182,7 +183,7 @@ pip install numpy msgpack-numpy lmdb h5py
 
 pip install hydra-core
 
-cd /storage/user/huju/transferred/ws_dditnach/DDIT_thirdparty/Pointnet2_PyTorch/pointnet2_ops_lib
+cd /storage/user/huju/transferred/ws_dditnach/DDIT_thirdparty/Pointnet2_PyTorch/pointnet2_ops_lib # git clone git@github.com:Dawnborn/Pointnet2_PyTorch.git
 python setup.py install
 
 cd /storage/user/huju/transferred/ws_dditnach/DDIT_thirdparty/Pointnet2_PyTorch/
@@ -205,22 +206,23 @@ module load cudnn/v8.2.1.32
 ```bash
 python setup.py bdist_wheel
 ```
-报错
-```bash
-/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/lib/spconv/src/spconv/all.cc:20:91: error: no matching function for call to ‘torch::jit::RegisterOperators::RegisterOperators(const char [28], <unresolved overloaded function type>)’
-```
-参考[https://blog.csdn.net/Justin_JGT/article/details/136155006]删除jit
+报错(已解决无需重复该步骤)
+  ```bash
+  /storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/lib/spconv/src/spconv/all.cc:20:91: error: no matching function for call to ‘torch::jit::RegisterOperators::RegisterOperators(const char [28], <unresolved overloaded function type>)’
+  ```
+  参考[https://blog.csdn.net/Justin_JGT/article/details/136155006]删除jit
 
-报错
-```bash
-/storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/lib/spconv/src/spconv/maxpool.cu(116): error: more than one operator ">" matches these operands:
-```
+  报错
+  ```bash
+  /storage/user/huju/transferred/ws_dditnach/Diffusion-SDF/lib/spconv/src/spconv/maxpool.cu(116): error: more than one operator ">" matches these operands:
+  ```
 
-在lib/spconv/CMakeLists.txt中，添加以下内容：
-```
-add_definitions(-D__CUDA_NO_HALF_OPERATORS__)
-```
+  在lib/spconv/CMakeLists.txt中，添加以下内容：
+  ```
+  add_definitions(-D__CUDA_NO_HALF_OPERATORS__)
+  ```
 
+安装
 ```
 cd dist
 pip install spconv-1.0-cp37-cp37m-linux_x86_64.whl
@@ -232,9 +234,8 @@ pip install spconv-1.0-cp37-cp37m-linux_x86_64.whl
 cd ../../../lib/pointgroup_ops
 python setup.py develop
 ```
-报错src/bfs_cluster/bfs_cluster.h:11:10: fatal error: THC/THC.h: No such file or directory
-
-remove include THC/THC.h
+如果报错src/bfs_cluster/bfs_cluster.h:11:10: fatal error: THC/THC.h: No such file or directory
+  remove include THC/THC.h
 
 
 # My install on node
@@ -276,3 +277,52 @@ cd ../../../lib/pointgroup_ops
 python setup.py develop
 
 pip install tensorboardX
+
+# Myinstall on lg1
+
+env vars are set up by `source prep_cuda.sh`, please check for details
+
+```
+conda create -n diffusionsdf python=3.9
+
+conda activate diffusionsdf
+
+conda install -c conda-forge cmake
+
+source /home/junpeng/ws_dditnach/prep_cuda.sh
+
+pip install numpy==1.26.2
+
+pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+
+pip install pytorch-lightning==1.6.4
+
+wget https://data.pyg.org/whl/torch-1.11.0%2Bcu113/torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl
+pip install torch_scatter-2.0.9-cp39-cp39-linux_x86_64.whl
+
+pip install plyfile pandas joblib scikit-image==0.19.2 open3d rotary-embedding-torch==0.2.1 msgpack-numpy lmdb h5py hydra-core
+
+git clone git@github.com:Dawnborn/Pointnet2_PyTorch.git
+cd Pointnet2_PyTorch/pointnet2_ops_lib
+python setup.py install
+cd Pointnet2_PyTorch
+python setup.py install
+
+pip install timm
+```
+
+
+
+
+---
+接下来的部分只涉及到dimr的不完整复现，存在问题可以先跳过
+
+```
+
+```
+将cuda.cmake复制到`/home/junpeng/.conda/envs/diffusionsdf/lib/python3.9/site-packages/torch/share/cmake/Caffe2/public/cuda.cmake`
+
+```
+cd Diffusion-SDF/lib/spconv
+python setup.py bdist_wheel # 失败！！！
+```

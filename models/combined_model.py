@@ -1,4 +1,6 @@
 import pdb
+import os
+import json
 
 import torch
 import torch.utils.data
@@ -6,19 +8,16 @@ from torch.nn import functional as F
 import pytorch_lightning as pl
 
 # add paths in model/__init__.py for new models
-from models import *
+from models import SdfModel, DiffusionModel, DiffusionNet, BetaVAE
 from models.archs.DDITmodel import DDIT_model
-from models.archs.deep_implicit_template_decoder import Decoder, load_SDF_model_from_specs, load_SDF_specs, remove_weight_norm, calc_and_fix_weights
+from models.archs.deep_implicit_template_decoder import load_SDF_model_from_specs, load_SDF_specs, remove_weight_norm, calc_and_fix_weights
 
-import time
+from einops import reduce
 
-import deep_sdf
-import deep_sdf.workspace as ws
-
-from lib.pointgroup_ops.functions import pointgroup_ops
-import spconv
-from spconv.modules import SparseModule
-from models.archs.dimr_model import DIMR_model
+# from lib.pointgroup_ops.functions import pointgroup_ops
+# import spconv
+# from spconv.modules import SparseModule
+# from models.archs.dimr_model import DIMR_model
 
 loss_l1 = torch.nn.L1Loss(reduction="mean")
 
@@ -80,9 +79,10 @@ class CombinedModel(pl.LightningModule):
                 param.requires_grad = False
         
         if self.task in ('combined_dimr'):
-            self.dimr_model = DIMR_model()
+            # self.dimr_model = DIMR_model()
             # decoder_specs, experiment_directory = load_SDF_specs(specs["ddit_specs"]["wanted_category"][0], specs["sdf_model"])
             # self.decoder = load_SDF_model_from_specs(decoder_specs, experiment_directory)
+            pass
 
         if self.task in ('stage3'):
             self.diffusion_model = DiffusionModel(model=DiffusionNet(**specs["diffusion_model_specs"]),
@@ -114,7 +114,8 @@ class CombinedModel(pl.LightningModule):
         elif self.task == 'combined_ddit':
             return self.train_combined_ddit(x)
         elif self.task == 'combined_dimr':
-            return self.train_combined_dimr(x)
+            # return self.train_combined_dimr(x)
+            pass
         elif self.task == 'stage3':
             return self.train_finetune_warper(x)
 
@@ -197,11 +198,6 @@ class CombinedModel(pl.LightningModule):
         train_loss_l1 = loss_l1(pred_sdf, gt_sdf)
         loss = train_loss_l1
 
-        # sdf_loss = F.l1_loss(pred_sdf_list[-1].squeeze(), gt_sdf, reduction='none') # 40000 40000
-        # sdf_loss = reduce(sdf_loss, 'b ... -> b (...)', 'mean').mean()
-        # print("sdf_loss shape:{}".format(sdf_loss.shape))
-        # loss = sdf_loss
-
         loss_dict = {"loss": loss.detach()}
 
         self.log_dict(loss_dict, prog_bar=True, enable_graph=False)
@@ -210,61 +206,61 @@ class CombinedModel(pl.LightningModule):
 
         
 
-    def train_combined_dimr(self, x):
-        self.train()
+    # def train_combined_dimr(self, x):
+    #     self.train()
 
-        inner_ptc = x['point_cloud'].detach()
+    #     inner_ptc = x['point_cloud'].detach()
 
-        device = inner_ptc.device
+    #     device = inner_ptc.device
         
-        B,N,C = inner_ptc.shape
+    #     B,N,C = inner_ptc.shape
 
-        locs = []
-        locs_float = []
+    #     locs = []
+    #     locs_float = []
 
-        for idx_batch, xyz_middle in enumerate(inner_ptc):
-            xyz = xyz_middle*128 #TODO change according to the self.score_full_scale
-            xyz -= xyz.min(0)[0]
-            batch_idxs = torch.LongTensor(xyz.shape[0], 1).fill_(idx_batch)
-            batch_idxs = batch_idxs.to(device)
-            locs.append(torch.cat([batch_idxs, xyz.long()], dim=1))
-            locs_float.append(xyz_middle)
+    #     for idx_batch, xyz_middle in enumerate(inner_ptc):
+    #         xyz = xyz_middle*128 #TODO change according to the self.score_full_scale
+    #         xyz -= xyz.min(0)[0]
+    #         batch_idxs = torch.LongTensor(xyz.shape[0], 1).fill_(idx_batch)
+    #         batch_idxs = batch_idxs.to(device)
+    #         locs.append(torch.cat([batch_idxs, xyz.long()], dim=1))
+    #         locs_float.append(xyz_middle)
 
-        locs = torch.cat(locs,0).cpu()
-        locs_float = torch.cat(locs_float, 0)
+    #     locs = torch.cat(locs,0).cpu()
+    #     locs_float = torch.cat(locs_float, 0)
 
-        self.full_scale = [256, 256]
-        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).cpu().numpy(), self.full_scale[0], None)
+    #     self.full_scale = [256, 256]
+    #     spatial_shape = np.clip((locs.max(0)[0][1:] + 1).cpu().numpy(), self.full_scale[0], None)
 
-        voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, B, 4) # locs (12000,1+3) min 0 max 235
+    #     voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, B, 4) # locs (12000,1+3) min 0 max 235
 
-        feats = locs_float
-        voxel_feats = pointgroup_ops.voxelization(feats, v2p_map.cuda(), 4)  # (M, C), float, cuda # cfg.mode 4=mean
+    #     feats = locs_float
+    #     voxel_feats = pointgroup_ops.voxelization(feats, v2p_map.cuda(), 4)  # (M, C), float, cuda # cfg.mode 4=mean
 
-        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None)     # long (3)
+    #     spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None)     # long (3)
 
-        input_ = spconv.SparseConvTensor(voxel_feats, voxel_locs.int(), spatial_shape, B)
+    #     input_ = spconv.SparseConvTensor(voxel_feats, voxel_locs.int(), spatial_shape, B)
 
-        model_inp = {
-            "input": input_,
-            "input_map": p2v_map,
-            "coords": locs_float,
-            "batch_idxs": locs[:,0].int(), # id mark of concatenated pointcloud in the batch
-            "B": B
-        }
+    #     model_inp = {
+    #         "input": input_,
+    #         "input_map": p2v_map,
+    #         "coords": locs_float,
+    #         "batch_idxs": locs[:,0].int(), # id mark of concatenated pointcloud in the batch
+    #         "B": B
+    #     }
 
-        ret  = self.dimr_model.forward(model_inp)
-        pred_zs = ret['proposal_zs']
+    #     ret  = self.dimr_model.forward(model_inp)
+    #     pred_zs = ret['proposal_zs']
 
-        gt_latent = x["latent"].detach()
+    #     gt_latent = x["latent"].detach()
 
-        loss = huber_loss(pred_zs - gt_latent).mean()
+    #     loss = huber_loss(pred_zs - gt_latent).mean()
 
-        loss_dict = {"loss": loss.detach()}
+    #     loss_dict = {"loss": loss.detach()}
 
-        self.log_dict(loss_dict, prog_bar=True, enable_graph=False)
+    #     self.log_dict(loss_dict, prog_bar=True, enable_graph=False)
 
-        return loss
+    #     return loss
 
     def train_combined_ddit(self, x):
         self.train()
@@ -449,52 +445,52 @@ class CombinedModel(pl.LightningModule):
 
         return deform_code
 
-    def generate_lat_from_pc_dimr(self, pcd):
+    # def generate_lat_from_pc_dimr(self, pcd):
         
-        self.eval()
+    #     self.eval()
 
-        inner_ptc = pcd.detach()
+    #     inner_ptc = pcd.detach()
 
-        device = inner_ptc.device
+    #     device = inner_ptc.device
         
-        B,N,C = inner_ptc.shape
+    #     B,N,C = inner_ptc.shape
 
-        locs = []
-        locs_float = []
+    #     locs = []
+    #     locs_float = []
 
-        for idx_batch, xyz_middle in enumerate(inner_ptc):
-            xyz = xyz_middle*128 #TODO change according to the self.score_full_scale
-            xyz -= xyz.min(0)[0]
-            batch_idxs = torch.LongTensor(xyz.shape[0], 1).fill_(idx_batch)
-            batch_idxs = batch_idxs.to(device)
-            locs.append(torch.cat([batch_idxs, xyz.long()], dim=1))
-            locs_float.append(xyz_middle)
+    #     for idx_batch, xyz_middle in enumerate(inner_ptc):
+    #         xyz = xyz_middle*128 #TODO change according to the self.score_full_scale
+    #         xyz -= xyz.min(0)[0]
+    #         batch_idxs = torch.LongTensor(xyz.shape[0], 1).fill_(idx_batch)
+    #         batch_idxs = batch_idxs.to(device)
+    #         locs.append(torch.cat([batch_idxs, xyz.long()], dim=1))
+    #         locs_float.append(xyz_middle)
 
-        locs = torch.cat(locs,0).cpu()
-        locs_float = torch.cat(locs_float, 0)
+    #     locs = torch.cat(locs,0).cpu()
+    #     locs_float = torch.cat(locs_float, 0)
 
-        self.full_scale = [256, 256]
-        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).cpu().numpy(), self.full_scale[0], None)
+    #     self.full_scale = [256, 256]
+    #     spatial_shape = np.clip((locs.max(0)[0][1:] + 1).cpu().numpy(), self.full_scale[0], None)
 
-        voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, B, 4) # locs (12000,1+3) min 0 max 235
+    #     voxel_locs, p2v_map, v2p_map = pointgroup_ops.voxelization_idx(locs, B, 4) # locs (12000,1+3) min 0 max 235
 
-        feats = locs_float
-        voxel_feats = pointgroup_ops.voxelization(feats, v2p_map.cuda(), 4)  # (M, C), float, cuda # cfg.mode 4=mean
+    #     feats = locs_float
+    #     voxel_feats = pointgroup_ops.voxelization(feats, v2p_map.cuda(), 4)  # (M, C), float, cuda # cfg.mode 4=mean
 
-        spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None)     # long (3)
+    #     spatial_shape = np.clip((locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None)     # long (3)
 
-        input_ = spconv.SparseConvTensor(voxel_feats, voxel_locs.int(), spatial_shape, B)
+    #     input_ = spconv.SparseConvTensor(voxel_feats, voxel_locs.int(), spatial_shape, B)
 
-        model_inp = {
-            "input": input_,
-            "input_map": p2v_map,
-            "coords": locs_float,
-            "batch_idxs": locs[:,0].int(), # id mark of concatenated pointcloud in the batch
-            "B": B
-        }
+    #     model_inp = {
+    #         "input": input_,
+    #         "input_map": p2v_map,
+    #         "coords": locs_float,
+    #         "batch_idxs": locs[:,0].int(), # id mark of concatenated pointcloud in the batch
+    #         "B": B
+    #     }
 
-        ret  = self.dimr_model.forward(model_inp)
-        pred_zs = ret['proposal_zs']
+    #     ret  = self.dimr_model.forward(model_inp)
+    #     pred_zs = ret['proposal_zs']
 
-        return pred_zs
+    #     return pred_zs
 

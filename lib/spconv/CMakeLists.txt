@@ -4,7 +4,15 @@ project(SparseConv LANGUAGES CXX CUDA VERSION 1.0)
 option(SPCONV_BuildTests "Build the unit tests when BUILD_TESTING is enabled." ON)
 set(CMAKE_CXX_EXTENSIONS OFF) # avoid gnu++11 be added to CXX flags
 
-set(CUDA_TOOLKIT_ROOT_DIR "${CMAKE_CUDA_COMPILER}")
+set(CMAKE_CUDA_ARCHITECTURES 86)
+# set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_89,code=sm_89")
+
+set(CUDA_TOOLKIT_ROOT_DIR $ENV{CUDA_HOME})
+
+if(NOT CUDA_TOOLKIT_ROOT_DIR)
+    message(FATAL_ERROR "CUDA_HOME environment variable is not set.")
+endif()
+
 get_filename_component(CUDA_TOOLKIT_ROOT_DIR "${CUDA_TOOLKIT_ROOT_DIR}" DIRECTORY)
 get_filename_component(CUDA_TOOLKIT_ROOT_DIR "${CUDA_TOOLKIT_ROOT_DIR}" DIRECTORY)
 if(WIN32) # true if windows (32 and 64 bit)
